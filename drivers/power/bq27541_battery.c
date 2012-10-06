@@ -37,14 +37,17 @@
 #include <linux/timer.h>
 #include <linux/irq.h>
 #include <linux/wakelock.h>
+#include <linux/mutex.h>
 #include "../../arch/arm/mach-tegra/gpio-names.h"
 #if defined(CONFIG_ARCH_ACER_T30)
 #include "../../arch/arm/mach-tegra/board-acer-t30.h"
 extern int acer_board_id;
 extern int acer_board_type;
+extern bool throttle_start;
 #endif
 
-#define DRIVER_VERSION			"1.5.0"
+#define RELEASED_DATE			"2012/05/07"
+#define DRIVER_VERSION			"1.6.5"
 
 #ifdef CONFIG_BATTERY_BQ27541
 
@@ -81,6 +84,8 @@ extern int acer_board_type;
 
 /* Control register sub-commands */
 #define BQ27541_CNTL_DEVICE_TYPE	0x0001
+#define BQ27541_CNTL_FW_VERSION	0x0002
+#define BQ27541_CNTL_HW_VERSION	0x0003
 #define BQ27541_CNTL_SET_SLEEP		0x0013
 #define BQ27541_CNTL_CLEAR_SLEEP	0x0014
 #define BQ27541_CNTL_SET_SEALED	0x0020
@@ -103,19 +108,23 @@ extern int acer_board_type;
 #define ADAPTER_PLUG_IN		1
 #define ADAPTER_PULL_OUT		0
 
-#define BATT_LEARN_GPIO	TEGRA_GPIO_PX6
+/* Define charger related GPIO */
+#define BATT_LEARN	TEGRA_GPIO_PX6
+#define CHARGER_STAT	TEGRA_GPIO_PJ2
 #define CHARGING_FULL	TEGRA_GPIO_PW5
 
 static struct wake_lock ac_wake_lock;
 struct i2c_client *bat_client;
 bool AC_IN = false;
 int design_capacity = 0;
+int cpu_temp = 0;
 int bat_temp = 0;
 int Capacity = 0;
 int old_rsoc = 0;
 int counter = 0;
-int gpio = 0;
+int adapter = 0;
 
+extern tegra3_cpu_temp_query(void);
 
 struct bq27541_access_methods {
 	int (*read)(u8 reg, int *rt_value, int b_single,
@@ -130,6 +139,8 @@ struct bq27541_device_info {
 	struct timer_list		battery_poll_timer;
 	struct i2c_client		*client;
 	struct bq27541_platform_data	*plat_data;
+	struct delayed_work		work;
+	struct mutex		lock;
 	int				id;
 	int				irq;
 };
@@ -170,7 +181,43 @@ static struct kobject *bq27541_dbg_kobj;
 	}
 
 
-static ssize_t BatHealth_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t Firmware_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char * s = buf;
+	s32 ret;
+
+	ret = i2c_smbus_read_byte_data(bat_client, BQ27541_CNTL_FW_VERSION);
+	msleep(10);
+	s += sprintf(s, "%x\n", ret);
+	return (s - buf);
+}
+
+static ssize_t Charge_Full_Design_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char * s = buf;
+	s32 ret;
+
+	ret = i2c_smbus_read_word_data(bat_client, BQ27541_DESIGN_CAPACITY);
+	msleep(10);
+	s += sprintf(s, "%d mAh\n", ret);
+	return (s - buf);
+}
+
+static ssize_t Vendor_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char * s = buf;
+	s32 ret;
+
+	ret = i2c_smbus_read_byte_data(bat_client, BQ27541_CNTL_HW_VERSION);
+	msleep(10);
+	if(ret == 1)
+		s += sprintf(s, "Sanyo\n");
+	else
+		s += sprintf(s, "LG\n");
+	return (s - buf);
+}
+
+static ssize_t Health_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -186,12 +233,10 @@ static ssize_t BatHealth_show(struct kobject *kobj, struct kobj_attribute *attr,
 		s += sprintf(s, "GOOD\n");
 
 	msleep(100);
-
 	return (s - buf);
-
 }
 
-static ssize_t BatTemperature_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t Temperature_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -203,7 +248,7 @@ static ssize_t BatTemperature_show(struct kobject *kobj, struct kobj_attribute *
 	return (s - buf);
 }
 
-static ssize_t BatVoltage_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t Voltage_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -215,7 +260,7 @@ static ssize_t BatVoltage_show(struct kobject *kobj, struct kobj_attribute *attr
 	return (s - buf);
 }
 
-static ssize_t BatCurrent_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t Current_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -226,7 +271,7 @@ static ssize_t BatCurrent_show(struct kobject *kobj, struct kobj_attribute *attr
 
 	return (s - buf);
 }
-static ssize_t BatCapacity_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t Capacity_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -238,7 +283,7 @@ static ssize_t BatCapacity_show(struct kobject *kobj, struct kobj_attribute *att
 	return (s - buf);
 }
 
-static ssize_t BatStatus_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t Status_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -257,31 +302,7 @@ static ssize_t BatStatus_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return (s - buf);
 }
 
-static ssize_t BatPowerAVG_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
-{
-	char * s = buf;
-	s32 ret;
-
-	ret = i2c_smbus_read_word_data(bat_client, BQ27541_POWER_AVG);
-	msleep(10);
-	s += sprintf(s, "%dmW\n", ret);
-
-	return (s - buf);
-}
-
-static ssize_t BatEnergyNow_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
-{
-	char * s = buf;
-	s32 ret;
-
-	ret = i2c_smbus_read_word_data(bat_client, BQ27541_ENERGY_AVAIL);
-	msleep(10);
-	s += sprintf(s, "%dmWh\n", ret * (10 * 1000));
-
-	return (s - buf);
-}
-
-static ssize_t SealStatus_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t tSealStatus_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	int ret;
@@ -298,7 +319,7 @@ static ssize_t SealStatus_show(struct kobject *kobj, struct kobj_attribute *attr
 	return (s - buf);
 }
 
-static ssize_t GaugeReset_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t tGaugeReset_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret;
@@ -329,24 +350,24 @@ static ssize_t GaugeReset_show(struct kobject *kobj, struct kobj_attribute *attr
 	return (s - buf);
 }
 
-static ssize_t ChargerReset_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t tChargerReset_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 
-	tegra_gpio_enable(BATT_LEARN_GPIO);
-	gpio_request(BATT_LEARN_GPIO, "batt_learn");
+	tegra_gpio_enable(BATT_LEARN);
+	gpio_request(BATT_LEARN, "batt_learn");
 
-	s += sprintf(s, "BATT_LEARN_GPIO = %d\n", gpio_get_value(BATT_LEARN_GPIO));
-	gpio_direction_output(BATT_LEARN_GPIO, 1);
+	s += sprintf(s, "BATT_LEARN = %d\n", gpio_get_value(BATT_LEARN));
+	gpio_direction_output(BATT_LEARN, 1);
 	msleep(500);
-	s += sprintf(s, "BATT_LEARN_GPIO = %d\n", gpio_get_value(BATT_LEARN_GPIO));
-	gpio_direction_output(BATT_LEARN_GPIO, 0);
-	s += sprintf(s, "BATT_LEARN_GPIO = %d\n", gpio_get_value(BATT_LEARN_GPIO));
+	s += sprintf(s, "BATT_LEARN = %d\n", gpio_get_value(BATT_LEARN));
+	gpio_direction_output(BATT_LEARN, 0);
+	s += sprintf(s, "BATT_LEARN = %d\n", gpio_get_value(BATT_LEARN));
 
 	return (s - buf);
 }
 
-static ssize_t CheckSYHI_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t tCheckSYHI_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret, hi, hv;
@@ -398,7 +419,7 @@ static ssize_t CheckSYHI_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return (s - buf);
 }
 
-static ssize_t CheckLGHI_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t tCheckLGHI_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret, hi, hv;
@@ -451,7 +472,7 @@ static ssize_t CheckLGHI_show(struct kobject *kobj, struct kobj_attribute *attr,
 }
 
 
-static ssize_t DisableHibernate_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+static ssize_t tDisableHibernate_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
 {
 	char * s = buf;
 	s32 ret, BDC, DFC, DFB, hi, hv;
@@ -716,38 +737,40 @@ static ssize_t DisableHibernate_show(struct kobject *kobj, struct kobj_attribute
 }
 
 
-debug_attr(BatHealth);
-debug_attr(BatTemperature);
-debug_attr(BatVoltage);
-debug_attr(BatCurrent);
-debug_attr(BatCapacity);
-debug_attr(BatStatus);
-debug_attr(BatPowerAVG);
-debug_attr(BatEnergyNow);
-debug_attr(SealStatus);
-debug_attr(GaugeReset);
-debug_attr(ChargerReset);
-debug_attr(DisableHibernate);
-debug_attr(CheckSYHI);
-debug_attr(CheckLGHI);
+debug_attr(Firmware);
+debug_attr(Charge_Full_Design);
+debug_attr(Vendor);
+debug_attr(Health);
+debug_attr(Temperature);
+debug_attr(Voltage);
+debug_attr(Current);
+debug_attr(Capacity);
+debug_attr(Status);
+debug_attr(tSealStatus);
+debug_attr(tGaugeReset);
+debug_attr(tChargerReset);
+debug_attr(tDisableHibernate);
+debug_attr(tCheckSYHI);
+debug_attr(tCheckLGHI);
 
 
 
 static struct attribute * g[] = {
-	&BatHealth_attr.attr,
-	&BatTemperature_attr.attr,
-	&BatVoltage_attr.attr,
-	&BatCurrent_attr.attr,
-	&BatCapacity_attr.attr,
-	&BatStatus_attr.attr,
-	&BatPowerAVG_attr.attr,
-	&BatEnergyNow_attr.attr,
-	&SealStatus_attr.attr,
-	&GaugeReset_attr.attr,
-	&ChargerReset_attr.attr,
-	&DisableHibernate_attr.attr,
-	&CheckSYHI_attr.attr,
-	&CheckLGHI_attr.attr,
+	&Firmware_attr.attr,
+	&Charge_Full_Design_attr.attr,
+	&Vendor_attr.attr,
+	&Health_attr.attr,
+	&Temperature_attr.attr,
+	&Voltage_attr.attr,
+	&Current_attr.attr,
+	&Capacity_attr.attr,
+	&Status_attr.attr,
+	&tSealStatus_attr.attr,
+	&tGaugeReset_attr.attr,
+	&tChargerReset_attr.attr,
+	&tDisableHibernate_attr.attr,
+	&tCheckSYHI_attr.attr,
+	&tCheckLGHI_attr.attr,
 	NULL,
 };
 
@@ -995,9 +1018,10 @@ static void bq27541_disable_hibernate(void)
 
 static void bq27541_charger_reset(void)
 {
-	gpio_direction_output(BATT_LEARN_GPIO, 1);
+	gpio_direction_output(BATT_LEARN, 1);
 	msleep(100);
-	gpio_direction_output(BATT_LEARN_GPIO, 0);
+	gpio_direction_output(BATT_LEARN, 0);
+	printk("Charger Reset with BATT_LEARN=%d\n", gpio_get_value(BATT_LEARN));
 }
 
 int bq27541_battery_check(int arg)
@@ -1010,23 +1034,24 @@ int bq27541_battery_check(int arg)
 		dev_err(di->dev, "error getting bat_client\n");
 
 	ret = bat_i2c_read(BQ27541_REG_SOC, &rsoc, 0, di);
-	msleep(50);
+	msleep(20);
 
 	switch (arg) {
 	case 1:
 		return rsoc;
 		break;
 	case 2:
-		if(rsoc < 100)
+		/* Change to FULL at  97% due to capacity mapping. */
+		if(rsoc < 97)
 		{
-			if(gpio_get_value(gpio))
+			if(gpio_get_value(adapter))
 				return POWER_SUPPLY_STATUS_CHARGING;
 			else
 				return POWER_SUPPLY_STATUS_DISCHARGING;
 		}
 		else
 		{
-			if(gpio_get_value(gpio))
+			if(gpio_get_value(adapter))
 				return POWER_SUPPLY_STATUS_FULL;
 			else
 				return POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -1048,9 +1073,9 @@ int bq27541_low_temp_check(void)
 		dev_err(di->dev, "error getting bat_client\n");
 
 	ret = bat_i2c_read(BQ27541_REG_SOC, &rsoc, 0, di);
-	msleep(50);
+	msleep(20);
 	ret = bat_i2c_read(BQ27541_REG_TEMP, &temp, 0, di);
-	msleep(50);
+	msleep(20);
 
 	if((rsoc > 40) && (temp < 2744) && (temp > 2647))
 		return RSOC_NOT_QUALIFY;
@@ -1071,7 +1096,7 @@ static int bq27541_battery_health(struct bq27541_device_info *di)
 	int status = 0;
 
 	ret = bat_i2c_read(BQ27541_REG_FLAGS, &status, 0, di);
-	msleep(50);
+	msleep(20);
 
 	if (ret  < 0) {
 		dev_err(di->dev, "read failure\n");
@@ -1100,7 +1125,7 @@ static int bq27541_battery_temperature(struct bq27541_device_info *di)
 	int report = temp - 2731;
 
 	ret = bat_i2c_read(BQ27541_REG_TEMP, &temp, 0, di);
-	msleep(50);
+	msleep(20);
 
 	report = temp - 2731;
 	bat_temp = report;
@@ -1112,7 +1137,7 @@ static int bq27541_battery_temperature(struct bq27541_device_info *di)
 	if((report == 0) || (report > 680)){
 		dev_err(di->dev, "1st error temperature value\n");
 		ret = bat_i2c_read(BQ27541_REG_TEMP, &temp, 0, di);
-		msleep(200);
+		msleep(50);
 		if((report == 0) || (report > 680)){
 			dev_err(di->dev, "2nd error temperature value\n");
 			bat_temp = 273;
@@ -1136,7 +1161,7 @@ static int bq27541_battery_voltage(struct bq27541_device_info *di)
 	int volt = 0;
 
 	ret = bat_i2c_read(BQ27541_REG_VOLT, &volt, 0, di);
-	msleep(50);
+	msleep(20);
 
 	if (ret < 0) {
 		dev_err(di->dev, "error reading voltage\n");
@@ -1157,7 +1182,7 @@ static int bq27541_battery_current(struct bq27541_device_info *di)
 	int curr = 0;
 
 	ret = bat_i2c_read(BQ27541_REG_AI, &curr, 0, di);
-	msleep(50);
+	msleep(20);
 
 	if (ret < 0) {
 		dev_err(di->dev, "error reading current\n");
@@ -1178,7 +1203,7 @@ static int bq27541_battery_rsoc(struct bq27541_device_info *di)
 	int rsoc = 0;
 
 	ret = bat_i2c_read(BQ27541_REG_SOC, &rsoc, 0, di);
-	msleep(50);
+	msleep(20);
 
 	if (ret < 0) {
 		dev_err(di->dev, "error reading relative State-of-Charge\n");
@@ -1189,7 +1214,7 @@ static int bq27541_battery_rsoc(struct bq27541_device_info *di)
 	if((rsoc == 0) || (rsoc > 100)){
 		dev_err(di->dev, "1st error capacity value\n");
 		ret = bat_i2c_read(BQ27541_REG_SOC, &rsoc, 0, di);
-		msleep(200);
+		msleep(50);
 		if((rsoc == 0) || (rsoc > 100)){
 			dev_err(di->dev, "2nd error capacity value\n");
 			Capacity = old_rsoc;
@@ -1207,19 +1232,29 @@ static int bq27541_battery_rsoc(struct bq27541_device_info *di)
 	{
 		/* Capacity mapping for 5% preserved engrgy */
 		if (rsoc <= 23 && rsoc > 15)
-			return (Capacity - 2);
+			return (Capacity -= 2);
 		else if (rsoc <= 15 && rsoc > 11)
-			return (Capacity - 3);
+			return (Capacity -= 3);
 		else if (rsoc <= 11 && rsoc > 4)
-			return (Capacity - 4);
+			return (Capacity -= 4);
 		else if (rsoc <= 4){
 			Capacity = 0;
 			return 0;
 		}
+		/* Capacity mapping from 97% to 100% */
+		else if (rsoc >= 97){
+			Capacity = 100;
+			return Capacity;
+		}
+		else if (rsoc < 97 && rsoc >= 92)
+			return (Capacity += 3);
+		else if (rsoc < 92 && rsoc >= 87)
+			return (Capacity += 2);
+		else if (rsoc < 87 && rsoc >= 82)
+			return (Capacity += 1);
 		else
 			return Capacity;
 	}
-
 }
 
 static int bq27541_battery_status(struct bq27541_device_info *di)
@@ -1228,7 +1263,7 @@ static int bq27541_battery_status(struct bq27541_device_info *di)
 	int status = POWER_SUPPLY_STATUS_UNKNOWN;
 
 	ret = bat_i2c_read(BQ27541_REG_FLAGS, &status, 0, di);
-	msleep(50);
+	msleep(20);
 
 	if (ret < 0) {
 		dev_err(di->dev, "error reading flags\n");
@@ -1236,7 +1271,7 @@ static int bq27541_battery_status(struct bq27541_device_info *di)
 	}
 
 	ret = bat_i2c_read(BQ27541_REG_SOC, &Capacity, 0, di);
-	msleep(50);
+	msleep(20);
 
 	/* Query to judge AC status, not report to uevent. */
 	if (ret < 0) {
@@ -1244,20 +1279,36 @@ static int bq27541_battery_status(struct bq27541_device_info *di)
 		return 0;
 	}
 
-	if(Capacity < 100)
+	/*
+	 * PicassoMF will stop charging when reach 85 degree
+	 * to start throttling. Once CPU temperature drops to
+	 * 75 degree, battery driver helps to recover chargerIC.
+	 */
+	cpu_temp = tegra3_cpu_temp_query();
+	if((acer_board_type == BOARD_PICASSO_MF) && gpio_get_value(adapter)){
+		if(throttle_start && (cpu_temp <= 75)){
+			bq27541_charger_reset();
+			throttle_start = false;
+		}
+	}
+
+	/* Change to FULL at  97% due to capacity mapping. */
+	if(Capacity < 97)
 	{
-		if(gpio_get_value(gpio)){
-			gpio_direction_output(CHARGING_FULL, 1);
+		if(gpio_get_value(adapter)){
 			status = POWER_SUPPLY_STATUS_CHARGING;
+			if(acer_board_type != BOARD_PICASSO_E2)
+				gpio_direction_output(CHARGING_FULL, 1);
 		}
 		else
 			status = POWER_SUPPLY_STATUS_DISCHARGING;
 	}
 	else
 	{
-		if(gpio_get_value(gpio)){
-			gpio_direction_output(CHARGING_FULL, 1);
+		if(gpio_get_value(adapter)){
 			status = POWER_SUPPLY_STATUS_FULL;
+			if(acer_board_type != BOARD_PICASSO_E2)
+				gpio_direction_output(CHARGING_FULL, 1);
 		}
 		else
 			status = POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -1272,19 +1323,21 @@ static int bq27541_battery_present(struct bq27541_device_info *di)
 	int present = 0;
 
 	/* Calculate counter for limitation of 10.5hr charger reset */
-	if(counter <= 240){
-		if(gpio_get_value(gpio))
-			counter += 1;
-		else
+	if(acer_board_type != BOARD_PICASSO_E2){
+		if(counter <= 240){
+			if(gpio_get_value(adapter))
+				counter += 1;
+			else
+				counter = 0;
+		}
+		else{
+			bq27541_charger_reset();
 			counter = 0;
-	}
-	else{
-		bq27541_charger_reset();
-		counter = 0;
+		}
 	}
 
 	ret = bat_i2c_read(BQ27541_DESIGN_CAPACITY, &present, 0, di);
-	msleep(50);
+	msleep(20);
 	design_capacity = present;
 
 	if (ret >= 0){
@@ -1307,6 +1360,7 @@ static int bq27541_battery_get_property(struct power_supply *psy,
 	int ret = 0;
 	struct bq27541_device_info *di = bat_to_bq27541_device_info(psy);
 
+	mutex_lock(&di->lock);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
@@ -1329,9 +1383,9 @@ static int bq27541_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = bq27541_battery_temperature(di);
-		printk("AC_IN = %d, Capacity = %d, RSOC = %d, Temperature = %d, LT_Check = %d, Charging_count = %d\n",
-			gpio_get_value(gpio), old_rsoc, bq27541_battery_check(1), val->intval, bq27541_low_temp_check(),
-			counter);
+		printk("AC = %d, Level = %d, RSOC = %d, Bat_temp = %d, CPU_temp = %d, LT = %d, Count = %d\n",
+			gpio_get_value(adapter), old_rsoc, bq27541_battery_check(1), val->intval, cpu_temp,
+			bq27541_low_temp_check(), counter);
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = bq27541_battery_health(di);
@@ -1340,8 +1394,10 @@ static int bq27541_battery_get_property(struct power_supply *psy,
 		val->intval = design_capacity;
 		break;
 	default:
+		mutex_unlock(&di->lock);
 		return -EINVAL;
 	}
+	mutex_unlock(&di->lock);
 
 	return ret;
 }
@@ -1359,7 +1415,7 @@ static char *ac_power_supplied_to[] = {
 
 static int bq27541_get_ac_status(void)
 {
-	if(gpio_get_value(gpio))
+	if(gpio_get_value(adapter))
 		return ADAPTER_PLUG_IN;
 	else
 		return ADAPTER_PULL_OUT;
@@ -1448,9 +1504,15 @@ static irqreturn_t ac_present_irq(int irq, void *data)
 	struct bq27541_device_info *di = data;
 	wake_lock_timeout(&ac_wake_lock, 3*HZ);
 	/* Debounce with 80ms to block abnormal interrupt when AC plug out */
-	mdelay(DEBOUNCE);
-	power_supply_changed(&di->ac);
+	schedule_delayed_work(&di->work, msecs_to_jiffies(DEBOUNCE));
 	return IRQ_HANDLED;
+}
+
+static void debounce_work(struct work_struct *work)
+{
+	struct bq27541_device_info *di;
+	di = container_of(work, struct bq27541_device_info, work.work);
+	power_supply_changed(&di->ac);
 }
 
 static void bq27541_poll_timer_func(unsigned long pdi)
@@ -1484,19 +1546,30 @@ static int bq27541_battery_probe(struct i2c_client *client,
 		goto failed_device;
 	}
 
-	gpio = irq_to_gpio(client->irq);
-	AC_IN = gpio_get_value(gpio);
+	adapter = irq_to_gpio(client->irq);
+	AC_IN = gpio_get_value(adapter);
 	di->irq = client->irq;
 
-	tegra_gpio_enable(CHARGING_FULL);
-	retval = gpio_request(CHARGING_FULL, "full_half_chg");
-	if (retval < 0)
-		printk(KERN_INFO "%s: gpio_request failed for gpio-%d\n",__func__, TEGRA_GPIO_PW5);
-	mdelay(10);
+	mutex_init(&di->lock);
 
-	gpio_free(BATT_LEARN_GPIO);
-	tegra_gpio_enable(BATT_LEARN_GPIO);
-	retval = gpio_request(BATT_LEARN_GPIO, "batt_learn");
+	if(acer_board_type != BOARD_PICASSO_E2){
+		tegra_gpio_enable(CHARGING_FULL);
+		retval = gpio_request(CHARGING_FULL, "full_half_chg");
+		if (retval < 0)
+			printk(KERN_INFO "%s: gpio_request failed for gpio-%d\n",__func__, TEGRA_GPIO_PW5);
+		mdelay(10);
+
+		tegra_gpio_enable(CHARGER_STAT);
+		retval = gpio_request(CHARGER_STAT, "chg_stat");
+		if (retval < 0)
+			printk(KERN_INFO "%s: gpio_request failed for gpio-%d\n",__func__, TEGRA_GPIO_PJ2);
+		mdelay(10);
+		gpio_free(BATT_LEARN);
+	}
+
+	tegra_gpio_enable(BATT_LEARN);
+	retval = gpio_request(BATT_LEARN, "batt_learn");
+
 	if (retval < 0)
 		printk(KERN_INFO "%s: gpio_request failed for gpio-%d\n",__func__, TEGRA_GPIO_PX6);
 
@@ -1539,13 +1612,16 @@ static int bq27541_battery_probe(struct i2c_client *client,
 		goto failed_reg_bat;
 	}
 
-	retval = request_threaded_irq(di->irq, NULL, ac_present_irq, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, "ac_present", di);
+	INIT_DELAYED_WORK(&di->work, debounce_work);
+	retval = request_threaded_irq(di->irq, NULL, ac_present_irq,
+		IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, "ac_present", di);
+
 	if (retval < 0) {
 		dev_err(&di->client->dev, "%s: request_irq failed(%d)\n", __func__, retval);
 		goto failed_reg_ac;
 	}
 
-	bq27541_dbg_kobj = kobject_create_and_add("BatControl", NULL);
+	bq27541_dbg_kobj = kobject_create_and_add("dev-info_battery", NULL);
 	if (bq27541_dbg_kobj == NULL)
 	{
 		dev_err(&di->client->dev,"%s: subsystem_register failed\n", __FUNCTION__);
@@ -1556,12 +1632,18 @@ static int bq27541_battery_probe(struct i2c_client *client,
 		dev_err(&di->client->dev,"%s: sysfs_create_group failed, %d\n", __FUNCTION__, __LINE__);
 	}
 
+	/* Reset Charger IC due to charging full within 4.5hr limitation */
+	if(acer_board_type != BOARD_PICASSO_E2){
+		if (gpio_get_value(adapter))
+			bq27541_charger_reset();
+	}
+
 	wake_lock_init(&ac_wake_lock, WAKE_LOCK_SUSPEND, "t30-ac");
-	dev_info(&client->dev, "support ver. %s enabled\n", DRIVER_VERSION);
+	dev_info(&client->dev, "support ver. %s enabled (%s)\n", DRIVER_VERSION, RELEASED_DATE);
 
 #if defined(CONFIG_ARCH_ACER_T30)
-	if ( (acer_board_type == BOARD_PICASSO_2 || acer_board_type == BOARD_PICASSO_M ) &&
-		(acer_board_id == BOARD_EVT || acer_board_id == BOARD_DVT1 || acer_board_id == BOARD_DVT2)) {
+	if ( (acer_board_type == BOARD_PICASSO_2 || acer_board_type == BOARD_PICASSO_M )
+		&& (acer_board_id == BOARD_EVT || acer_board_id == BOARD_DVT1 || acer_board_id == BOARD_DVT2)) {
 		bq27541_disable_hibernate();
 	}
 #endif
@@ -1588,8 +1670,12 @@ static int bq27541_battery_remove(struct i2c_client *client)
 	struct bq27541_device_info *di = i2c_get_clientdata(client);
 
 	free_irq(di->irq, di);
-	gpio_free(CHARGING_FULL);
-	gpio_free(BATT_LEARN_GPIO);
+	cancel_delayed_work_sync(&di->work);
+	if(acer_board_type != BOARD_PICASSO_E2){
+		gpio_free(CHARGING_FULL);
+		gpio_free(CHARGER_STAT);
+	}
+	gpio_free(BATT_LEARN);
 	power_supply_unregister(&di->ac);
 	power_supply_unregister(&di->bat);
 	del_timer_sync(&di->battery_poll_timer);
@@ -1606,7 +1692,8 @@ static int bq27541_battery_suspend(struct i2c_client *client,
 	pm_message_t state)
 {
 	struct bq27541_device_info *di = i2c_get_clientdata(client);
-	if(gpio_get_value(gpio))
+	mutex_lock(&di->lock);
+	if(gpio_get_value(adapter) && (acer_board_type != BOARD_PICASSO_E2))
 		gpio_direction_output(CHARGING_FULL, 0);
 	del_timer_sync(&di->battery_poll_timer);
 	enable_irq_wake(client->irq);
@@ -1619,6 +1706,7 @@ static int bq27541_battery_resume(struct i2c_client *client)
 	setup_timer(&di->battery_poll_timer, bq27541_poll_timer_func, (unsigned long) di);
 	mod_timer(&di->battery_poll_timer, jiffies + msecs_to_jiffies(BATTERY_FAST_POLL_PERIOD));
 	disable_irq_wake(client->irq);
+	mutex_unlock(&di->lock);
 	return 0;
 }
 #endif

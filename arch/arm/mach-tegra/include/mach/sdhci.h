@@ -26,7 +26,7 @@ struct tegra_sdhci_platform_data {
 	int power_gpio;
 	int is_8bit;
 	unsigned int tap_delay;
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_ARCH_ACER_T20)
 	int cd_gpio_polarity;
 #endif
 #if defined(CONFIG_ARCH_ACER_T30)

@@ -388,6 +388,12 @@ const struct tegra_hdmi_audio_config tegra_hdmi_audio_192k[] = {
 	{0,		0,	0},
 };
 
+enum {
+	TEGRA_HDMI_NO_CONNECTION = 0,
+	TEGRA_HDMI_PLUG_HDMI,
+	TEGRA_HDMI_PLUG_DVI_VGA,
+};
+
 static const struct tegra_hdmi_audio_config
 *tegra_hdmi_get_audio_config(unsigned audio_freq, unsigned pix_clock)
 {
@@ -750,6 +756,7 @@ void tegra_dc_hdmi_detect_config(struct tegra_dc *dc,
 						struct fb_monspecs *specs)
 {
 	struct tegra_dc_hdmi_data *hdmi = tegra_dc_get_outdata(dc);
+	int state = TEGRA_HDMI_PLUG_HDMI;
 
 	/* monitors like to lie about these but they are still useful for
 	 * detecting aspect ratios
@@ -762,7 +769,10 @@ void tegra_dc_hdmi_detect_config(struct tegra_dc *dc,
 	tegra_fb_update_monspecs(dc->fb, specs, tegra_dc_hdmi_mode_filter);
 #ifdef CONFIG_SWITCH
 	hdmi->hpd_switch.state = 0;
-	switch_set_state(&hdmi->hpd_switch, 1);
+	if (!hdmi->edid->support_audio) {
+		state = TEGRA_HDMI_PLUG_DVI_VGA;
+	}
+	switch_set_state(&hdmi->hpd_switch, state);
 #endif
 	dev_info(&dc->ndev->dev, "display detected\n");
 
@@ -777,7 +787,7 @@ bool tegra_dc_hdmi_detect_test(struct tegra_dc *dc, unsigned char *edid_ptr)
 	struct fb_monspecs specs;
 	struct tegra_dc_hdmi_data *hdmi = tegra_dc_get_outdata(dc);
 
-	if (!dc || !hdmi || !edid_ptr) {
+	if (!hdmi || !edid_ptr) {
 		dev_err(&dc->ndev->dev, "HDMI test failed to get arguments.\n");
 		return false;
 	}
@@ -802,7 +812,7 @@ bool tegra_dc_hdmi_detect_test(struct tegra_dc *dc, unsigned char *edid_ptr)
 fail:
 	hdmi->eld_retrieved = false;
 #ifdef CONFIG_SWITCH
-	switch_set_state(&hdmi->hpd_switch, 0);
+	switch_set_state(&hdmi->hpd_switch, TEGRA_HDMI_NO_CONNECTION);
 #endif
 #ifdef CONFIG_TEGRA_NVHDCP
 	tegra_nvhdcp_set_plug(hdmi->nvhdcp, 0);
@@ -856,7 +866,7 @@ static bool tegra_dc_hdmi_detect(struct tegra_dc *dc)
 fail:
 	hdmi->eld_retrieved = false;
 #ifdef CONFIG_SWITCH
-	switch_set_state(&hdmi->hpd_switch, 0);
+	switch_set_state(&hdmi->hpd_switch, TEGRA_HDMI_NO_CONNECTION);
 #endif
 #ifdef CONFIG_TEGRA_NVHDCP
 	tegra_nvhdcp_set_plug(hdmi->nvhdcp, 0);
@@ -1527,7 +1537,7 @@ static void tegra_dc_hdmi_setup_avi_infoframe(struct tegra_dc *dc, bool dvi)
 	}
 
 #if defined(CONFIG_ARCH_ACER_T30) || defined(CONFIG_ARCH_ACER_T20)
-	if (hdmi->eld.vsdb) {
+	if (hdmi->edid->vsdb) {
 		avi.s = HDMI_AVI_S_UNDERSCAN;
 	}
 #endif

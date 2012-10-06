@@ -40,6 +40,8 @@ struct tegra_i2c_platform_data {
 	int sda_gpio[TEGRA_I2C_MAX_BUS];
 	int (*arb_recovery)(int scl_gpio, int sda_gpio);
 #endif
+	bool is_high_speed_enable;
+	u16 hs_master_code;
 };
 
 struct tegra_i2c_slave_platform_data {

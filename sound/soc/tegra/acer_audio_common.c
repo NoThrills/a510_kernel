@@ -49,6 +49,48 @@ extern void start_stop_psensor(bool);
 extern struct acer_audio_data audio_data;
 
 struct notifier_block notifier;
+static struct kobject *audio_dev_info_kobj;
+
+static ssize_t codec_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char *s = buf;
+	s += sprintf(s, "WM8903\n");
+	return (s - buf);
+}
+
+static ssize_t dsp_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char *s = buf;
+#if defined(CONFIG_ARCH_ACER_T20)
+	s += sprintf(s, "FM2018\n");
+#else
+  s += sprintf(s, "ES305\n");
+#endif
+	return (s - buf);
+}
+
+#define debug_attr(_name) \
+	static struct kobj_attribute _name##_attr = { \
+	.attr = { \
+	.name = __stringify(_name), \
+	.mode = 0644, \
+	}, \
+	.show = _name##_show, \
+	}
+
+debug_attr(dsp);
+debug_attr(codec);
+
+static struct attribute * group[] = {
+	&dsp_attr.attr,
+	&codec_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group =
+{
+	.attrs = group,
+};
 
 static int acer_audio_notifier(struct notifier_block *this,
 				unsigned long code, void *dev)
@@ -170,6 +212,18 @@ bool handset_mic_detect(struct snd_soc_codec *codec)
 
 static int acer_audio_common_probe(struct platform_device *pdev)
 {
+	int rc = 0;
+
+	audio_dev_info_kobj = kobject_create_and_add("dev-info_audio", NULL);
+	if (audio_dev_info_kobj == NULL) {
+		dev_err(&pdev->dev,"%s: subsystem_register failed\n", __FUNCTION__);
+	}
+	rc = sysfs_create_group(audio_dev_info_kobj, &attr_group);
+
+	if (rc) {
+		dev_err(&pdev->dev,"%s: sysfs_create_group failed, %d\n", __FUNCTION__, __LINE__);
+	}
+
 	pr_info("[AudioCommon] probe done.\n");
 	return 0;
 }

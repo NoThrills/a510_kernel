@@ -184,6 +184,7 @@ static int suspend_enter(suspend_state_t state)
 	arch_suspend_enable_irqs();
 	BUG_ON(irqs_disabled());
 
+	printk("resume:resume\n");
  Enable_cpus:
 	enable_nonboot_cpus();
 

@@ -50,6 +50,7 @@
 #define MMC_SET_BLOCKLEN         16   /* ac   [31:0] block len   R1  */
 #define MMC_READ_SINGLE_BLOCK    17   /* adtc [31:0] data addr   R1  */
 #define MMC_READ_MULTIPLE_BLOCK  18   /* adtc [31:0] data addr   R1  */
+#define MMC_SEND_TUNING_BLOCK    19   /* adtc                    R1  */
 
   /* class 3 */
 #define MMC_WRITE_DAT_UNTIL_STOP 20   /* adtc [31:0] data addr   R1  */
@@ -283,7 +284,7 @@ struct _mmc_csd {
 #define EXT_CSD_ERASE_TIMEOUT_MULT	223	/* RO */
 #define EXT_CSD_HC_ERASE_GRP_SIZE	224	/* RO */
 
-#ifdef CONFIG_ARCH_ACER_T20
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 #define EXT_CSD_BOOT_SIZE_MULTI		226
 #endif
 

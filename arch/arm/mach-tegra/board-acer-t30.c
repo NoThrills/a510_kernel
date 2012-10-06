@@ -88,11 +88,11 @@
 #include "../../../sound/soc/tegra/acer_a1026.h"
 #endif
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 static void bt_shutdown_pin_init(void);
-#endif
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)  // GPIO init
 void gpio_unused_init(void);
+
+#if defined(CONFIG_MACH_PICASSO_E2)
+#include <linux/input/ft5816_i2c_ts.h>
 #endif
 
 /* All units are in millicelsius */
@@ -154,9 +154,6 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 			.xcvr_lsrslew = 2,
 	},
 };
-
-
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 
 static int bt_uart_gpio[] = {
 	TEGRA_GPIO_PW7,
@@ -222,12 +219,10 @@ static void bt_ext_gpio_init(void)
 	gpio_set_value(TEGRA_GPIO_PP0, 0);
 	gpio_free(TEGRA_GPIO_PP0);
 }
-#endif
 
 #ifdef CONFIG_BCM4329_RFKILL
 
 static struct resource cardhu_bcm4329_rfkill_resources[] = {
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 	{
 		.name   = "bcm4329_nshutdown_gpio",
 		.start  = TEGRA_GPIO_PU6,
@@ -252,14 +247,6 @@ static struct resource cardhu_bcm4329_rfkill_resources[] = {
 		.end    = TEGRA_GPIO_PP2,
 		.flags  = IORESOURCE_IO,
 	},
-#else
-	{
-		.name   = "bcm4329_nshutdown_gpio",
-		.start  = TEGRA_GPIO_PU0,
-		.end    = TEGRA_GPIO_PU0,
-		.flags  = IORESOURCE_IO,
-	},
-#endif
 };
 
 static struct platform_device cardhu_bcm4329_rfkill_device = {
@@ -274,18 +261,14 @@ static noinline void __init cardhu_bcm4329_bt_rfkill(void)
 	/*Add Clock Resource*/
 	clk_add_alias("bcm4329_32k_clk", cardhu_bcm4329_rfkill_device.name, \
 				"blink", NULL);
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 	disable_bt_uart_func();
 	bt_shutdown_pin_init();
-#endif
-
 	return;
 }
 #else
 static inline void cardhu_bcm4329_bt_rfkill(void) { }
 #endif
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 static void bt_shutdown_pin_init(void) {
         if(acer_board_type == BOARD_PICASSO_2) {
             if(acer_board_id == BOARD_DVT1) {
@@ -295,11 +278,8 @@ static void bt_shutdown_pin_init(void) {
             }
         }
 }
-#endif
-
 
 static struct resource cardhu_bluesleep_resources[] = {
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 	[0] = {
 		.name = "gpio_host_wake",
 			.start  = TEGRA_GPIO_PS7,
@@ -318,26 +298,6 @@ static struct resource cardhu_bluesleep_resources[] = {
 			.end    = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PS7),
 			.flags  = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
 	},
-#else
-	[0] = {
-		.name = "gpio_host_wake",
-			.start  = TEGRA_GPIO_PU6,
-			.end    = TEGRA_GPIO_PU6,
-			.flags  = IORESOURCE_IO,
-	},
-	[1] = {
-		.name = "gpio_ext_wake",
-			.start  = TEGRA_GPIO_PU1,
-			.end    = TEGRA_GPIO_PU1,
-			.flags  = IORESOURCE_IO,
-	},
-	[2] = {
-		.name = "host_wake",
-			.start  = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU6),
-			.end    = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU6),
-			.flags  = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
-	},
-#endif
 };
 
 static struct platform_device cardhu_bluesleep_device = {
@@ -350,15 +310,10 @@ static struct platform_device cardhu_bluesleep_device = {
 static noinline void __init cardhu_setup_bluesleep(void)
 {
 	platform_device_register(&cardhu_bluesleep_device);
-
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 	bt_ext_gpio_init();
 	tegra_gpio_enable(TEGRA_GPIO_PS7);
 	tegra_gpio_enable(TEGRA_GPIO_PP0);
-#else
-	tegra_gpio_enable(TEGRA_GPIO_PU6);
-	tegra_gpio_enable(TEGRA_GPIO_PU1);
-#endif
+
 	return;
 }
 
@@ -372,10 +327,10 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "i2s1",	"pll_a_out0",	0,		false},
 	{ "i2s3",	"pll_a_out0",	0,		false},
 	{ "spdif_out",	"pll_a_out0",	0,		false},
-	{ "d_audio",	"pll_a_out0",	0,		false},
-	{ "dam0",	"pll_a_out0",	0,		false},
-	{ "dam1",	"pll_a_out0",	0,		false},
-	{ "dam2",	"pll_a_out0",	0,		false},
+	{ "d_audio",	"clk_m",	12000000,	false},
+	{ "dam0",	"clk_m",	12000000,	false},
+	{ "dam1",	"clk_m",	12000000,	false},
+	{ "dam2",	"clk_m",	12000000,	false},
 	{ "audio1",     "i2s1_sync",    0,              false},
 	{ "audio3",     "i2s3_sync",    0,              false},
 	{ "vi_sensor",	"pll_p",	150000000,	false},
@@ -403,7 +358,11 @@ static struct i2c_board_info __initdata cardhu_i2c_eeprom_board_info[] = {
 static struct tegra_i2c_platform_data cardhu_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
+#if defined(CONFIG_MACH_PICASSO_E2)
+	.bus_clk_rate	= { 400000, 0 },
+#else
 	.bus_clk_rate	= { 100000, 0 },
+#endif
 	.scl_gpio		= {TEGRA_GPIO_PC4, 0},
 	.sda_gpio		= {TEGRA_GPIO_PC5, 0},
 	.arb_recovery = arb_lost_recovery,
@@ -412,7 +371,11 @@ static struct tegra_i2c_platform_data cardhu_i2c1_platform_data = {
 static struct tegra_i2c_platform_data cardhu_i2c2_platform_data = {
 	.adapter_nr	= 1,
 	.bus_count	= 1,
+#if defined(CONFIG_MACH_PICASSO_E2)
+	.bus_clk_rate	= { 400000, 0 },
+#else
 	.bus_clk_rate	= { 100000, 0 },
+#endif
 	.is_clkon_always = true,
 	.scl_gpio		= {TEGRA_GPIO_PT5, 0},
 	.sda_gpio		= {TEGRA_GPIO_PT6, 0},
@@ -440,7 +403,11 @@ static struct tegra_i2c_platform_data cardhu_i2c4_platform_data = {
 static struct tegra_i2c_platform_data cardhu_i2c5_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
+#if defined(CONFIG_MACH_PICASSO_E2)
+	.bus_clk_rate	= { 400000, 0 },
+#else
 	.bus_clk_rate	= { 100000, 0 },
+#endif
 	.scl_gpio		= {TEGRA_GPIO_PZ6, 0},
 	.sda_gpio		= {TEGRA_GPIO_PZ7, 0},
 	.arb_recovery = arb_lost_recovery,
@@ -555,6 +522,8 @@ static void __init uart_debug_init(void)
 			(board_info.board_id == BOARD_E1257))
 				debug_port_id = 1;
 	}
+
+	tegra_init_debug_uart_rate();
 	switch (debug_port_id) {
 	case 0:
 		/* UARTA is the debug port. */
@@ -812,19 +781,6 @@ static struct platform_device cardhu_audio_device = {
 	},
 };
 
-static struct resource ram_console_resources[] = {
-	{
-		.flags = IORESOURCE_MEM,
-	},
-};
-
-static struct platform_device ram_console_device = {
-	.name 		= "ram_console",
-	.id 		= -1,
-	.num_resources	= ARRAY_SIZE(ram_console_resources),
-	.resource	= ram_console_resources,
-};
-
 #ifdef CONFIG_PSENSOR3G
 static struct gpio_switch_platform_data psensor_3g_switch_platform_data[] = {
 	{
@@ -894,7 +850,6 @@ static struct platform_device *cardhu_devices[] __initdata = {
 #if defined(CONFIG_CRYPTO_DEV_TEGRA_AES)
 	&tegra_aes_device,
 #endif
-	&ram_console_device,
 #ifdef CONFIG_PSENSOR3G
 	&psensor_switch_3g,
 #endif
@@ -948,12 +903,21 @@ static const u8 config_sku2000[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+static struct i2c_board_info __initdata ft5816_i2c_info[] = {
+	{
+		I2C_BOARD_INFO(FT5816_NAME, I2C_CTPM_ADDRESS),
+		.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PJ0),
+	},
+};
+#else
 static struct i2c_board_info __initdata atmel_i2c_info[] = {
 	{
 		I2C_BOARD_INFO("maXTouch", 0X4C),
 		.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PJ0),
 	},
 };
+#endif
 
 static int __init cardhu_touch_init(void)
 {
@@ -990,8 +954,11 @@ static int __init cardhu_touch_init(void)
 	msleep(2);
 	gpio_set_value(TEGRA_GPIO_PI2, 1);
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+	i2c_register_board_info(1, ft5816_i2c_info, 1);
+#else
 	i2c_register_board_info(1, atmel_i2c_info, 1);
-
+#endif
 	return 0;
 }
 
@@ -1010,6 +977,7 @@ static struct tegra_ehci_platform_data tegra_ehci_uhsic_pdata = {
 	.phy_config = &uhsic_phy_config,
 	.operating_mode = TEGRA_USB_HOST,
 	.power_down_on_bus_suspend = 1,
+	.default_enable = true,
 };
 
 static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
@@ -1017,17 +985,20 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 			.phy_config = &utmi_phy_config[0],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 0,
+			.default_enable = true,
 	},
 	[1] = {
 			.phy_config = &utmi_phy_config[1],
 			.operating_mode = TEGRA_USB_HOST,
-			.power_down_on_bus_suspend = 0,
+			.power_down_on_bus_suspend = 1,
+			.default_enable = true,
 	},
 	[2] = {
 			.phy_config = &utmi_phy_config[2],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 0,
 			.hotplug = 1,
+			.default_enable = true,
 	},
 };
 
@@ -1040,7 +1011,11 @@ static struct tegra_otg_platform_data tegra_otg_pdata = {
 static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
 	[0] = {
 			.instance = 0,
+#if defined(CONFIG_MACH_PICASSO_E2)
+			.vbus_gpio = -1,
+#else
 			.vbus_gpio = TEGRA_GPIO_PN1,
+#endif
 			.vbus_reg_supply = NULL,
 	},
 	[1] = {
@@ -1049,7 +1024,11 @@ static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
 	},
 	[2] = {
 			.instance = 2,
+#if defined(CONFIG_MACH_PICASSO_E2)
+			.vbus_gpio = -1,
+#else
 			.vbus_gpio = TEGRA_GPIO_PN1,
+#endif
 			.vbus_reg_supply = NULL,
 	},
 };
@@ -1104,7 +1083,9 @@ static void cardhu_usb_init(void)
 	}
 
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
+#if defined(CONFIG_MACH_PICASSO_E2)
 	platform_device_register(&tegra_ehci3_device);
+#endif
 }
 #else
 static void cardhu_usb_init(void) { }
@@ -1182,68 +1163,6 @@ static struct platform_device tegra_baseband_power2_device = {
 	},
 };
 
-static void cardhu_modem_init(void)
-{
-	struct board_info board_info;
-	int w_disable_gpio, ret;
-
-	tegra_get_board_info(&board_info);
-	switch (board_info.board_id) {
-	case BOARD_E1291:
-	case BOARD_E1198:
-		if (((board_info.board_id == BOARD_E1291) &&
-				(board_info.fab < BOARD_FAB_A03)) ||
-			((board_info.board_id == BOARD_E1198) &&
-					(board_info.fab < BOARD_FAB_A02))) {
-			w_disable_gpio = TEGRA_GPIO_PH5;
-		} else {
-			w_disable_gpio = TEGRA_GPIO_PDD5;
-		}
-		tegra_gpio_enable(w_disable_gpio);
-		ret = gpio_request(w_disable_gpio, "w_disable_gpio");
-		if (ret < 0)
-			pr_err("%s: gpio_request failed for gpio %d\n",
-				__func__, w_disable_gpio);
-		else
-			gpio_direction_input(w_disable_gpio);
-
-		/* E1291-A04 & E1198:A02: Set PERST signal to high */
-		if (((board_info.board_id == BOARD_E1291) &&
-				(board_info.fab >= BOARD_FAB_A04)) ||
-			((board_info.board_id == BOARD_E1198) &&
-					(board_info.fab >= BOARD_FAB_A02))) {
-			ret = gpio_request(TEGRA_GPIO_PH7, "modem_perst");
-			if (ret < 0) {
-				pr_err("%s(): Error in allocating gpio "
-					"TEGRA_GPIO_PH7\n", __func__);
-				break;
-			}
-			gpio_direction_output(TEGRA_GPIO_PH7, 1);
-			tegra_gpio_enable(TEGRA_GPIO_PH7);
-		}
-		break;
-	case BOARD_E1186:
-		tegra_gpio_enable(
-			tegra_baseband_power_data.modem.xmm.bb_rst);
-		tegra_gpio_enable(
-			tegra_baseband_power_data.modem.xmm.bb_on);
-		tegra_gpio_enable(
-			tegra_baseband_power_data.modem.xmm.ipc_bb_wake);
-		tegra_gpio_enable(
-			tegra_baseband_power_data.modem.xmm.ipc_ap_wake);
-		tegra_gpio_enable(
-			tegra_baseband_power_data.modem.xmm.ipc_hsic_active);
-		tegra_gpio_enable(
-			tegra_baseband_power_data.modem.xmm.ipc_hsic_sus_req);
-		platform_device_register(&tegra_baseband_power_device);
-		platform_device_register(&tegra_baseband_power2_device);
-		break;
-	default:
-		break;
-	}
-
-}
-
 #ifdef CONFIG_SATA_AHCI_TEGRA
 static void cardhu_sata_init(void)
 {
@@ -1255,25 +1174,37 @@ static void cardhu_sata_init(void) { }
 
 static void acer_board_info(void) {
 	if (acer_board_type == BOARD_PICASSO_2)
-		pr_info("Board Type: Picasso 2");
+		pr_info("Board Type: Picasso 2\n");
 	else if (acer_board_type == BOARD_PICASSO_M)
-		pr_info("Board Type: Picasso M");
+		pr_info("Board Type: Picasso M\n");
+	else if (acer_board_type == BOARD_PICASSO_MF)
+		pr_info("Board Type: Picasso MF\n");
+	else if (acer_board_type == BOARD_PICASSO_E2)
+		pr_info("Board Type: Picasso E2\n");
+	else
+		pr_info("Board Type: not support (%d)\n", acer_board_type);
 
 	switch (acer_board_id) {
 		case BOARD_EVT:
-			pr_info("Board Type: EVT\n");
+			pr_info("Board ID: EVT\n");
 			break;
 		case BOARD_DVT1:
-			pr_info("Board Type: DVT1\n");
+			pr_info("Board ID: DVT1\n");
 			break;
 		case BOARD_DVT2:
-			pr_info("Board Type: DVT2\n");
+			pr_info("Board ID: DVT2\n");
 			break;
-		case BOARD_PVT:
-			pr_info("Board Type: PVT\n");
+		case BOARD_PVT1:
+			pr_info("Board ID: PVT1\n");
+			break;
+		case BOARD_PVT2:
+			pr_info("Board ID: PVT2\n");
+			break;
+		case BOARD_PRE_MP:
+			pr_info("Board ID: Pre MP\n");
 			break;
 		default:
-			pr_info("Board Type: none\n");
+			pr_info("Board ID: Not support\n");
 			break;
 	}
 
@@ -1370,9 +1301,7 @@ static void __init tegra_cardhu_init(void)
 	tegra_thermal_init(&thermal_data);
 	tegra_clk_init_from_table(cardhu_clk_init_table);
 	acer_t30_pinmux_init();
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)  // GPIO init
 	gpio_unused_init();
-#endif
 	cardhu_i2c_init();
 	cardhu_spi_init();
 	cardhu_usb_init();
@@ -1382,6 +1311,10 @@ static void __init tegra_cardhu_init(void)
 	cardhu_uart_init();
 	cardhu_tsensor_init();
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));
+	tegra_ram_console_debug_init();
+#ifdef CONFIG_ACER_RAM_LOG
+	acer_ramlog_debug_init();
+#endif
 	cardhu_sdhci_init();
 	cardhu_regulator_init();
 	cardhu_gpio_switch_regulator_init();
@@ -1390,7 +1323,6 @@ static void __init tegra_cardhu_init(void)
 	cardhu_touch_init();
 	cardhu_gps_uart_init();
 	cardhu_gps_init();
-	cardhu_modem_init();
 	cardhu_scroll_init();
 #ifdef CONFIG_DOCK_V2
 	acer_dock_init();
@@ -1436,19 +1368,7 @@ static void __init cardhu_ramconsole_reserve(unsigned long size)
 	struct resource *res;
 	long ret;
 
-	res = platform_get_resource(&ram_console_device, IORESOURCE_MEM, 0);
-	if (!res) {
-		pr_err("Failed to find memory resource for ram console\n");
-		return;
-	}
-	res->start = memblock_end_of_DRAM() - size;
-	res->end = res->start + size - 1;
-	ret = memblock_remove(res->start, size);
-	if (ret) {
-		ram_console_device.resource = NULL;
-		ram_console_device.num_resources = 0;
-		pr_err("Failed to reserve memory block for ram console\n");
-	}
+	tegra_ram_console_debug_reserve(SZ_1M);
 }
 
 static void __init tegra_cardhu_reserve(void)
@@ -1460,6 +1380,9 @@ static void __init tegra_cardhu_reserve(void)
 	tegra_reserve(SZ_128M, SZ_8M, SZ_8M);
 #endif
 	cardhu_ramconsole_reserve(SZ_1M);
+#ifdef CONFIG_ACER_RAM_LOG
+	acer_ramlog_debug_reserve(2*SZ_1M);
+#endif
 }
 
 MACHINE_START(PICASSO2, "picasso2")
@@ -1477,6 +1400,26 @@ MACHINE_START(PICASSO_M, "picasso_m")
 	.map_io         = tegra_map_common_io,
 	.reserve        = tegra_cardhu_reserve,
 	.init_early     = tegra_init_early,
+	.init_irq       = tegra_init_irq,
+	.timer          = &tegra_timer,
+	.init_machine   = tegra_cardhu_init,
+MACHINE_END
+
+MACHINE_START(PICASSO_MF, "picasso_mf")
+	.boot_params    = 0x80000100,
+	.map_io         = tegra_map_common_io,
+	.reserve        = tegra_cardhu_reserve,
+	.init_early     = tegra_init_early,
+	.init_irq       = tegra_init_irq,
+	.timer          = &tegra_timer,
+	.init_machine   = tegra_cardhu_init,
+MACHINE_END
+
+MACHINE_START(PICASSO_E2, "picasso_e2")
+	.boot_params    = 0x80000100,
+	.map_io         = tegra_map_common_io,
+	.reserve        = tegra_cardhu_reserve,
+	.init_early	= tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_cardhu_init,

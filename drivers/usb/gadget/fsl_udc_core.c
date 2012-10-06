@@ -50,7 +50,9 @@
 #include <asm/unaligned.h>
 #include <asm/dma.h>
 
-#if defined(CONFIG_ARCH_ACER_T30)
+#include <mach/iomap.h>
+
+#if defined(CONFIG_DOCK_V2)
 #include "../../../../arch/arm/mach-tegra/gpio-names.h"
 #include "../../../../arch/arm/mach-tegra/board-acer-t30.h"
 #include <linux/gpio.h>
@@ -71,6 +73,7 @@ extern bool usb3_vbus_enabled;
 
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 #define	STATUS_BUFFER_SIZE	8
+#define	USB1_PREFETCH_ID 	6
 
 #ifdef CONFIG_ARCH_TEGRA
 static const char driver_name[] = "fsl-tegra-udc";
@@ -135,7 +138,7 @@ static const u8 fsl_udc_test_packet[53] = {
 /********************************************************************
  *	Internal Used Function
 ********************************************************************/
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_DOCK_V2)
 static int get_dock_gpio_pin(void)
 {
 	if (acer_board_type == BOARD_PICASSO_2 && (acer_board_id == BOARD_EVT || acer_board_id == BOARD_DVT1))
@@ -799,6 +802,10 @@ static void fsl_queue_td(struct fsl_ep *ep, struct fsl_req *req)
 			| EP_QUEUE_HEAD_STATUS_HALT));
 	dQH->size_ioc_int_sts &= temp;
 
+#if defined(CONFIG_ARCH_TEGRA)
+	fsl_udc_ep_barrier();
+#endif
+
 	/* Ensure that updates to the QH will occur before priming. */
 	wmb();
 
@@ -884,6 +891,10 @@ static int fsl_req_to_dtd(struct fsl_req *req, gfp_t gfp_flags)
 	int		is_first =1;
 	struct ep_td_struct	*last_dtd = NULL, *dtd;
 	dma_addr_t dma;
+
+#if defined(CONFIG_ARCH_TEGRA)
+	fsl_udc_dtd_prepare();
+#endif
 
 	do {
 		dtd = fsl_build_dtd(req, &count, &dma, &is_last, gfp_flags);
@@ -1304,7 +1315,6 @@ static int fsl_vbus_session(struct usb_gadget *gadget, int is_active)
 			schedule_delayed_work(&udc->work,
 				USB_CHARGER_DETECTION_WAIT_TIME_MS);
 		}
-		return 0;
 	}
 
 	spin_lock_irqsave(&udc->lock, flags);
@@ -1818,6 +1828,13 @@ static int process_ep_req(struct fsl_udc *udc, int pipe,
 	actual = curr_req->req.length;
 
 	for (j = 0; j < curr_req->dtd_count; j++) {
+#ifdef CONFIG_ARCH_TEGRA
+		/* Fence read for coherency of AHB master intiated writes */
+		readb(IO_ADDRESS(IO_PPCS_PHYS + USB1_PREFETCH_ID));
+#endif
+		dma_sync_single_for_cpu(udc->gadget.dev.parent, curr_td->td_dma,
+			sizeof(struct ep_td_struct), DMA_FROM_DEVICE);
+
 		remaining_length = (le32_to_cpu(curr_td->size_ioc_sts)
 					& DTD_PACKET_SIZE)
 				>> DTD_LENGTH_BIT_POS;
@@ -2152,6 +2169,10 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 		spin_unlock_irqrestore(&udc->lock, flags);
 		return IRQ_NONE;
 	}
+#ifdef CONFIG_ARCH_TEGRA
+	/* Fence read for coherency of AHB master intiated writes */
+	readb(IO_ADDRESS(IO_PPCS_PHYS + USB1_PREFETCH_ID));
+#endif
 #ifndef CONFIG_TEGRA_SILICON_PLATFORM
 	{
 		u32 temp = fsl_readl(&usb_sys_regs->vbus_sensors);
@@ -3019,25 +3040,25 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 static int fsl_udc_resume(struct platform_device *pdev)
 {
 	if (udc_controller->transceiver) {
-		fsl_udc_clk_enable();
+		fsl_udc_clk_resume(true);
 		if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_ID_PIN_STATUS)) {
 			/* If ID status is low means host is connected, return */
-			fsl_udc_clk_disable();
+			fsl_udc_clk_suspend(false);
 			return 0;
 		}
 		/* check for VBUS */
 		if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS)) {
 			/* if there is no VBUS then power down the clocks and return */
-			fsl_udc_clk_disable();
+			fsl_udc_clk_suspend(false);
 			return 0;
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_DOCK_V2)
 		} else if (!gpio_get_value(get_dock_gpio_pin()) || usb3_vbus_enabled) {
 			/* if there is dock attached then power down the clocks and return */
 			fsl_udc_clk_disable();
 			return 0;
 #endif
 		} else {
-			fsl_udc_clk_disable();
+			fsl_udc_clk_suspend(false);
 			if (udc_controller->transceiver->state == OTG_STATE_A_HOST)
 				return 0;
 			/* Detected VBUS set the transceiver state to device mode */

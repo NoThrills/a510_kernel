@@ -45,6 +45,7 @@
 #define LOCAL_TEMP_LO_LIMIT_RD		0x06
 
 #define EXT_TEMP_HI_LIMIT_HI_BYTE_RD	0x07
+#define EXT_TEMP_LO_LIMIT_HI_BYTE_RD	0x08
 
 #define CONFIG_WR			0x09
 #define CONV_RATE_WR			0x0A
@@ -78,6 +79,8 @@
 #define CELSIUS_TO_MILLICELSIUS(x) ((x)*1000)
 #define MILLICELSIUS_TO_CELSIUS(x) ((x)/1000)
 
+struct i2c_client *cpu_client;
+
 static inline s8 value_to_temperature(bool extended, u8 value)
 {
 	return extended ? (s8)(value - EXTENDED_RANGE_OFFSET) : (s8)value;
@@ -87,6 +90,66 @@ static inline u8 temperature_to_value(bool extended, s8 temp)
 {
 	return extended ? (u8)(temp + EXTENDED_RANGE_OFFSET) : (u8)temp;
 }
+
+static s32 nct1008_i2c_write_byte_retry(struct i2c_client *client, u8 command, u8 value)
+{
+	int i, ret;
+	for(i=0; i<=2; i++){
+		msleep(10);
+		ret = i2c_smbus_write_byte_data(client, command, value);
+		if(ret == 0)
+			break;
+		dev_err(&client->dev, "%s, line=%d, i2c write error=%d\n",
+			__func__, __LINE__, ret);
+	}
+
+	if(i == 3){
+		dev_err(&client->dev,"%s: retry 4 times failed, error=%d\n",
+			__func__, ret);
+		return -EINVAL;
+	}
+	return ret;
+}
+
+static int nct1008_show_cpu_temp(struct nct1008_data* data)
+{
+	struct i2c_client *client = data->client;
+	struct nct1008_platform_data *pdata = client->dev.platform_data;
+	s8 cpu_temp;
+	int ret = 0;
+	int ret_lo;
+
+	ret_lo = i2c_smbus_read_byte_data(client, EXT_TEMP_RD_LO);
+	if (ret_lo < 0)
+		dev_err(&client->dev, "%s: failed to read "
+			"ext_temperature, i2c error=%d\n", __func__, ret_lo);
+
+	ret= i2c_smbus_read_byte_data(client, EXT_TEMP_RD_HI);
+	if (ret < 0)
+		dev_err(&client->dev, "%s: failed to read "
+			"ext_temperature, i2c error=%d\n", __func__, ret);
+
+	cpu_temp = value_to_temperature(pdata->ext_range, ret);
+	return cpu_temp;
+}
+
+int tegra3_cpu_temp_query(void)
+{
+	struct nct1008_data *data;
+	int ret = 0;
+	data = kzalloc(sizeof(struct nct1008_data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	data->client = cpu_client;
+	memcpy(&data->plat_data, cpu_client->dev.platform_data,
+		sizeof(struct nct1008_platform_data));
+
+	ret = nct1008_show_cpu_temp(data);
+	kfree(data);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(tegra3_cpu_temp_query);
 
 static int nct1008_get_temp(struct device *dev, long *pTemp)
 {
@@ -258,24 +321,23 @@ static ssize_t nct1008_show_temp_alert(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct nct1008_platform_data *pdata = client->dev.platform_data;
 	int value;
-	s8 temp, temp2;
-	/* External Temperature Throttling limit */
+	s8 temp_hi, temp_lo;
+	/* External Temperature Throttling hi-limit */
 	value = i2c_smbus_read_byte_data(client, EXT_TEMP_HI_LIMIT_HI_BYTE_RD);
 	if (value < 0)
 		goto error;
-	temp2 = value_to_temperature(pdata->ext_range, value);
+	temp_hi = value_to_temperature(pdata->ext_range, value);
 
-	/* Local Temperature Throttling limit */
-	value = i2c_smbus_read_byte_data(client, LOCAL_TEMP_HI_LIMIT_RD);
+	/* External Temperature Throttling lo-limit */
+	value = i2c_smbus_read_byte_data(client, EXT_TEMP_LO_LIMIT_HI_BYTE_RD);
 	if (value < 0)
 		goto error;
-	temp = value_to_temperature(pdata->ext_range, value);
+	temp_lo = value_to_temperature(pdata->ext_range, value);
 
-	return snprintf(buf, MAX_STR_PRINT, "%d %d\n", temp, temp2);
+	return snprintf(buf, MAX_STR_PRINT, "lo:%d hi:%d\n", temp_lo, temp_hi);
 error:
-	dev_err(dev, "%s: failed to read temperature-overheat "
-		"\n", __func__);
-	return snprintf(buf, MAX_STR_PRINT, " Rd overheat Error\n");
+	dev_err(dev, "%s: failed to read temperature-alert\n", __func__);
+	return snprintf(buf, MAX_STR_PRINT, " Rd alert Error\n");
 }
 
 static ssize_t nct1008_set_temp_alert(struct device *dev,
@@ -467,7 +529,7 @@ static int nct1008_enable(struct i2c_client *client)
 	struct nct1008_data *data = i2c_get_clientdata(client);
 	int err;
 
-	err = i2c_smbus_write_byte_data(client, CONFIG_WR,
+	err = nct1008_i2c_write_byte_retry(client, CONFIG_WR,
 				  data->config & ~STANDBY_BIT);
 	if (err < 0)
 		dev_err(&client->dev, "%s, line=%d, i2c write error=%d\n",
@@ -480,7 +542,7 @@ static int nct1008_disable(struct i2c_client *client)
 	struct nct1008_data *data = i2c_get_clientdata(client);
 	int err;
 
-	err = i2c_smbus_write_byte_data(client, CONFIG_WR,
+	err = nct1008_i2c_write_byte_retry(client, CONFIG_WR,
 				  data->config | STANDBY_BIT);
 	if (err < 0)
 		dev_err(&client->dev, "%s, line=%d, i2c write error=%d\n",
@@ -537,6 +599,8 @@ static int nct1008_enable_alert(struct nct1008_data *data)
 	return ret;
 }
 
+
+#if defined(CONFIG_ARCH_ACER_T30)
 static void nct1008_work_func(struct work_struct *work)
 {
 	struct nct1008_data *data = container_of(work, struct nct1008_data,
@@ -575,6 +639,75 @@ static void nct1008_work_func(struct work_struct *work)
 	else
 		pr_debug("%s: done\n", __func__);
 }
+
+#else
+#define ALERT_HYSTERESIS_THROTTLE	1
+static bool throttle_enb = false;
+static void therm_throttle(struct nct1008_data *data, bool enable)
+{
+	if (!data->plat_data.alarm_fn) {
+		pr_err("system too hot. no way to cool down!\n");
+		return;
+	}
+
+	if (throttle_enb != enable) {
+		mutex_lock(&data->mutex);
+		data->plat_data.alarm_fn(enable);
+		throttle_enb = enable;
+		mutex_unlock(&data->mutex);
+	}
+}
+
+static void nct1008_work_func(struct work_struct *work)
+{
+	struct nct1008_data *data = container_of(work, struct nct1008_data,
+						work);
+	long temperature;
+	int err = 0;
+	int intr_status;
+
+	intr_status = i2c_smbus_read_byte_data(data->client, STATUS_RD);
+	if (intr_status < 0) {
+		pr_err("%s, line=%d, i2c read error=%d\n",
+			__func__, __LINE__, intr_status);
+		return;
+	}
+
+	intr_status &= (BIT(3) | BIT(4));
+	if (!intr_status)
+		return;
+
+	err = nct1008_disable_alert(data);
+	if (err) {
+		pr_err("%s: disable alert fail(error=%d)\n",
+			__func__, err);
+		return;
+	}
+
+	err = nct1008_get_temp(&data->client->dev, &temperature);
+	temperature = MILLICELSIUS_TO_CELSIUS(temperature);
+	if (err) {
+		pr_err("%s: get temp fail(%d)", __func__, err);
+		goto out;
+	}
+
+	if (temperature >= data->plat_data.throttling_ext_limit) {
+		therm_throttle(data, true);
+	} else if (temperature <=
+			(data->plat_data.throttling_ext_limit -
+			ALERT_HYSTERESIS_THROTTLE)) {
+		therm_throttle(data, false);
+	}
+
+out:
+	nct1008_enable_alert(data);
+
+	if (err)
+		pr_err("%s: fail(error=%d)\n", __func__, err);
+	else
+		pr_debug("%s: done\n", __func__);
+}
+#endif
 
 static irqreturn_t nct1008_irq(int irq, void *dev_id)
 {
@@ -716,6 +849,32 @@ static int __devinit nct1008_configure_sensor(struct nct1008_data* data)
 	if (err < 0)
 		goto error;
 
+#if defined(CONFIG_ARCH_ACER_T20)
+	value = temperature_to_value(pdata->ext_range, pdata->throttling_ext_limit);
+
+	/*External Temperature Throttling limit */
+	err = i2c_smbus_write_byte_data(client, EXT_TEMP_HI_LIMIT_HI_BYTE_WR, value);
+	if (err < 0)
+		goto error;
+
+	/* Local Temperature Throttling limit */
+	err = i2c_smbus_write_byte_data(client, LOCAL_TEMP_HI_LIMIT_WR, value);
+	if (err < 0)
+		goto error;
+
+	value = temperature_to_value(pdata->ext_range, pdata->shutdown_ext_limit);
+	/*External Temperature Shutdown limit */
+	err = i2c_smbus_write_byte_data(client, EXT_THERM_LIMIT_WR, value);
+	if (err < 0)
+		goto error;
+
+	value = temperature_to_value(pdata->ext_range, pdata->shutdown_local_limit);
+	/* Local Temperature Shutdown limit */
+	err = i2c_smbus_write_byte_data(client, LOCAL_THERM_LIMIT_WR, value);
+	if (err < 0)
+		goto error;
+#endif
+
 #if defined(CONFIG_ARCH_ACER_T30)
 	value = temperature_to_value(pdata->ext_range, pdata->throttling_ext_limit);
 
@@ -751,7 +910,8 @@ static int __devinit nct1008_configure_irq(struct nct1008_data *data)
 		return 0;
 	else
 		return request_irq(data->client->irq, nct1008_irq,
-			IRQF_TRIGGER_FALLING, DRIVER_NAME, data);
+			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+			DRIVER_NAME, data);
 }
 
 static unsigned int get_ext_mode_delay_ms(unsigned int conv_rate)
@@ -798,8 +958,10 @@ int nct1008_thermal_set_limits(struct nct1008_data *data,
 				long lo_limit_milli,
 				long hi_limit_milli)
 {
+#if defined(CONFIG_ARCH_ACER_T30)
 	struct i2c_client *client = data->client;
 	struct nct1008_platform_data *pdata = client->dev.platform_data;
+#endif
 	int err;
 	u8 value;
 	bool extended_range = data->plat_data.ext_range;
@@ -815,7 +977,7 @@ int nct1008_thermal_set_limits(struct nct1008_data *data,
 
 	if (data->current_lo_limit != lo_limit) {
 		value = temperature_to_value(extended_range, lo_limit);
-		pr_debug("%s: %d\n", __func__, value);
+		pr_debug("%s: set lo_limit %ld\n", __func__, lo_limit);
 		err = i2c_smbus_write_byte_data(data->client,
 				EXT_TEMP_LO_LIMIT_HI_BYTE_WR, value);
 		if (err)
@@ -830,7 +992,7 @@ int nct1008_thermal_set_limits(struct nct1008_data *data,
 #else
 		value = temperature_to_value(extended_range, hi_limit);
 #endif
-		pr_debug("%s: %d\n", __func__, value);
+		pr_debug("%s: set hi_limit %ld\n", __func__, hi_limit);
 		err = i2c_smbus_write_byte_data(data->client,
 				EXT_TEMP_HI_LIMIT_HI_BYTE_WR, value);
 		if (err)
@@ -906,9 +1068,11 @@ static int __devinit nct1008_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	data->client = client;
+	cpu_client = client;
 	memcpy(&data->plat_data, client->dev.platform_data,
 		sizeof(struct nct1008_platform_data));
 	i2c_set_clientdata(client, data);
+	mutex_init(&data->mutex);
 
 	nct1008_power_control(data, true);
 	/* extended range recommended steps 1 through 4 taken care
@@ -951,6 +1115,18 @@ static int __devinit nct1008_probe(struct i2c_client *client,
 	/* notify callback that probe is done */
 	if (data->plat_data.probe_callback)
 		data->plat_data.probe_callback(data);
+
+#if defined(CONFIG_ARCH_ACER_T30)
+	/* aviod alert pin keep low after reaching shutdown threshold */
+	err = nct1008_disable_alert(data);
+	if (err) {
+		pr_err("%s: disable alert fail(error=%d)\n",
+			__func__, err);
+		return;
+	}
+	msleep(100);
+	nct1008_enable_alert(data);
+#endif
 
 	return 0;
 

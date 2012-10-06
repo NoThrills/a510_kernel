@@ -40,6 +40,16 @@
 #include <asm/ptrace.h>
 #include <asm/localtimer.h>
 
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/clk.h>
+#include "../clock.h"
+#include "../dvfs.h"
+
+#define	T30_CPU_MAX_FREQ		1300000000
+
+extern int is_dvfs_init_ready(void);
+#endif
+
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -61,6 +71,9 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	struct task_struct *idle = ci->idle;
 	pgd_t *pgd;
 	int ret;
+#if defined(CONFIG_ARCH_ACER_T30)
+	static unsigned int old_rate;
+#endif
 
 	/*
 	 * Spawn a new process manually, if not already done.
@@ -111,6 +124,21 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	/*
 	 * Now bring the CPU into our world.
 	 */
+
+#if defined(CONFIG_ARCH_ACER_T30)
+	{
+		struct clk *cpu;
+		cpu = tegra_get_clock_by_name("cpu");
+		if (cpu && is_dvfs_init_ready()) {
+			old_rate = clk_get_rate(cpu);
+			ret = clk_set_rate(cpu, T30_CPU_MAX_FREQ);
+			if (clk_get_rate(cpu) != T30_CPU_MAX_FREQ) {
+				return -EINVAL;
+			}
+		}
+	}
+#endif
+
 	ret = boot_secondary(cpu, idle);
 	if (ret == 0) {
 		unsigned long timeout;
@@ -135,6 +163,18 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	} else {
 		pr_err("CPU%u: failed to boot: %d\n", cpu, ret);
 	}
+
+#if defined(CONFIG_ARCH_ACER_T30)
+	{
+		struct clk *cpu;
+		cpu = tegra_get_clock_by_name("cpu");
+		if (cpu && is_dvfs_init_ready()) {
+			if (clk_get_rate(cpu) == T30_CPU_MAX_FREQ) {
+				ret = clk_set_rate(cpu, old_rate);
+			}
+		}
+	}
+#endif
 
 	secondary_data.stack = NULL;
 	secondary_data.pgdir = 0;

@@ -16,10 +16,10 @@ extern int acer_board_type;
 #define MXT_MAX_TOUCH_SIZE                    255
 
 #define Firmware_Number                       4099
-#define ConfigChecksum                        15475657 /* EC23C9 */
+#define ConfigChecksum                        5522910  /* 5445DE */
 #define Chip_Vendor                           "AT"
 #define Reseved_Chip_Vendor                   "0"
-#define ConfigVersion                         1180176  /* 120210 */
+#define ConfigVersion                         1180451  /* 120323 */
 #define Reseved_Firmware_Info                 0
 #define Reseved_ConfigVersion                 0
 #define Reservedinfo                          0
@@ -41,10 +41,10 @@ enum {
 u8 T07OBJ[3]  = {  50, 255,  10};
 
 /* GEN_ACQUISITIONCONFIG_T8 INSTANCE 0 */
-u8 T08OBJ[10] = {  28,   0,  10,  10,   0,   0,   5,  17,  15,   0};
+u8 T08OBJ[10] = {  26,   0,  10,  10,   0,   0,   5,  17,  15,   0};
 
 /* TOUCH_MULTITOUCHSCREEN_T9 INSTATNCE 0 */
-u8 T09OBJ[35] = { 131,   0,   0,  30,  42,   0,  16,  80,   1,   5,
+u8 T09OBJ[35] = { 131,   0,   0,  30,  42,   0,  16,  80,   4,   5,
                    10,   5,   2,   0,  10,  15,  15,  10,  31,   3,
                   255,   4,   0,   0,   0,   0,   0,   0,  64,   0,
                    15,  25,   0,   0,   0};
@@ -57,7 +57,7 @@ u8 T24OBJ[19] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                     0,   0,   0,   0,   0,   0,   0,   0,   0};
 
 /* SPT_SELFTEST_T25 INSTATNCE 0 */
-u8 T25OBJ[6]  = {   0,   0,   0,   0,   0,   0};
+u8 T25OBJ[6]  = {   0,   0,  65,  80,  85,   0};
 
 /* PROCI_TWOTOUCHGESTUREPROCESSOR_T27 INSTATNCE 0 */
 u8 T27OBJ[7]  = {   0,   0,   0,   0,   0,   0,   0};
@@ -91,8 +91,8 @@ u8 T47OBJ[10] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0};
 
 /* PROCG_NOISESUPPRESSION_T48 INSTATNCE 0 */
 u8 T48OBJ[54]  = {   1, 128,   2,   0,   0,   0,   0,   0,   0,   0,
-                    16,  60,   0,  10,   0,   0,   0,  32,   0,   0,
-                    10,   0,  20,   0,   0,   0,   0,  63,   0,   0,
+                    16,  60,   0,  10,   0,   0,   0,  63,   0,   0,
+                    10,   0,  20,   0,   0,   0,   0,  16,   0,   0,
                      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                      0,   0,   0,   0};
@@ -106,13 +106,30 @@ u8 T56OBJ[43] = {   1,   0,   1,  48,  21,  21,  21,  21,  21,  21,
 
 struct sensitivity_mapping {
 	int symbol;
-	int value;
+	u8 value;
+	u32 checksum_config;
 };
 
-static struct sensitivity_mapping sensitivity_table[] = {
-	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           50},
-	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         60},
-	{TOUCH_SENSITIVITY_SYMBOL_LOW,            70},
+struct sensitvity_ver_mapping {
+	int Check_ConfigVersion;
+	struct sensitivity_mapping *sens_ver_mapping;
+};
+
+static struct sensitivity_mapping v01_sensitivity_table[] = {
+	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           83,     365254},
+	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         85,    3510726},
+	{TOUCH_SENSITIVITY_SYMBOL_LOW,            87,   10850511},
+};
+
+static struct sensitivity_mapping v02_sensitivity_table[] = {
+	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           65,   14437726},
+	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         80,    5522910},
+	{TOUCH_SENSITIVITY_SYMBOL_LOW,            85,    8144734},
+};
+
+static struct sensitvity_ver_mapping sensitivity_ver_table[] = {
+	{ 1180417, v01_sensitivity_table},
+	{ 1180451, v02_sensitivity_table},
 };
 
 #endif /* _LINUX_MXT1386E_PM_H */

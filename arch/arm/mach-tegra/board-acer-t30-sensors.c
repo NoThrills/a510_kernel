@@ -59,6 +59,7 @@
 #if defined(CONFIG_ARCH_ACER_T30)
 #include <media/ov5640.h>
 #include <media/ov9740.h>
+#include <media/yuv_sensor.h>
 #endif
 
 #if !defined(CONFIG_ARCH_ACER_T30)
@@ -68,7 +69,7 @@ static struct regulator *cardhu_1v8_cam3 = NULL;
 static struct regulator *cardhu_vdd_2v8_cam1 = NULL;
 static struct regulator *cardhu_vdd_2v8_cam2 = NULL;
 static struct regulator *cardhu_vdd_cam3 = NULL;
-#endif /* !CONFIG_ARCH_ACER_T30 */
+#endif  // !CONFIG_ARCH_ACER_T30
 
 static struct board_info board_info;
 
@@ -86,21 +87,35 @@ struct camera_gpio {
 		.init = _init,            \
 	}
 
+#if defined(CONFIG_MACH_PICASSO_E2)
 static struct camera_gpio camera_gpio_table[] = {
-	[0] = CAMERA_GPIO(0, "en_cam_1v8",  1),
-	[1] = CAMERA_GPIO(0, "en_cam_2v8",  0),
-	[2] = CAMERA_GPIO(0, "5m_cam_pwdn", 1),
-	[3] = CAMERA_GPIO(0, "5m_cam_rst",  0),
-	[4] = CAMERA_GPIO(0, "2m_cam_pwdn", 1),
-	[5] = CAMERA_GPIO(0, "2m_cam_rst",  0),
+	[0] = CAMERA_GPIO(TEGRA_GPIO_PR2,  "en_cam_1v8",  1),
+	[1] = CAMERA_GPIO(TEGRA_GPIO_PQ3,  "en_cam_2v8",  0),
+	[2] = CAMERA_GPIO(TEGRA_GPIO_PBB5, "2m_cam_pwdn", 1),
+	[3] = CAMERA_GPIO(TEGRA_GPIO_PBB0, "2m_cam_rst",  0),
 };
+#else
+static struct camera_gpio camera_gpio_table[] = {
+	[0] = CAMERA_GPIO(TEGRA_GPIO_PR2,  "en_cam_1v8",  1),
+	[1] = CAMERA_GPIO(TEGRA_GPIO_PQ3,  "en_cam_2v8",  0),
+	[2] = CAMERA_GPIO(TEGRA_GPIO_PBB3, "5m_cam_pwdn", 1),
+	[3] = CAMERA_GPIO(TEGRA_GPIO_PBB4, "5m_cam_rst",  0),
+	[4] = CAMERA_GPIO(TEGRA_GPIO_PBB5, "2m_cam_pwdn", 1),
+	[5] = CAMERA_GPIO(TEGRA_GPIO_PBB0, "2m_cam_rst",  0),
+};
+#endif
 
-#define EN_CAM_1V8       camera_gpio_table[0].gpio  // EN_CAM_1V8#
-#define EN_CAM_2V8       camera_gpio_table[1].gpio  // EN_CAM_2V8
-#define OV5640_CAM_PWDN  camera_gpio_table[2].gpio  // 5M_CAM_PWDN
-#define OV5640_CAM_RST   camera_gpio_table[3].gpio  // 5M_CAM_RST#
-#define OV9740_CAM_PWDN  camera_gpio_table[4].gpio  // 2M_CAM_PWDN
-#define OV9740_CAM_RST   camera_gpio_table[5].gpio  // 2M_CAM_RST#
+#define EN_CAM_1V8        camera_gpio_table[0].gpio  // EN_CAM_1V8#
+#define EN_CAM_2V8        camera_gpio_table[1].gpio  // EN_CAM_2V8
+
+#define OV5640_CAM_PWDN   camera_gpio_table[2].gpio  // 5M_CAM_PWDN
+#define OV5640_CAM_RST    camera_gpio_table[3].gpio  // 5M_CAM_RST#
+
+#define OV9740_CAM_PWDN   camera_gpio_table[4].gpio  // 2M_CAM_PWDN
+#define OV9740_CAM_RST    camera_gpio_table[5].gpio  // 2M_CAM_RST#
+
+#define MT9D115_CAM_PWDN  camera_gpio_table[2].gpio  // 2M_CAM_PWDN
+#define MT9D115_CAM_RST   camera_gpio_table[3].gpio  // 2M_CAM_RST#
 
 static int cardhu_camera_init(void)
 {
@@ -110,23 +125,10 @@ static int cardhu_camera_init(void)
 
 	pr_info("%s\n", __func__);
 
-	// TODO: support DVT1&EVT temporarily, remove this patch in PVT
 	if (acer_board_type == BOARD_PICASSO_2 && (acer_board_id == BOARD_DVT1 || acer_board_id == BOARD_EVT)) {
-		// DVT1 camera GPIO setting
-		camera_gpio_table[0].gpio = TEGRA_GPIO_PQ3;  // EN_CAM_1V8#
-		camera_gpio_table[1].gpio = TEGRA_GPIO_PR2;  // EN_CAM_2V8
-		camera_gpio_table[2].gpio = TEGRA_GPIO_PBB3; // OV5640_CAM_PWDN
-		camera_gpio_table[3].gpio = TEGRA_GPIO_PBB4; // OV5640_CAM_RST
-		camera_gpio_table[4].gpio = TEGRA_GPIO_PBB5; // OV9740_CAM_PWDN
-		camera_gpio_table[5].gpio = TEGRA_GPIO_PBB6; // OV9740_CAM_RST
-	} else {
-		// DVT2 camera GPIO setting
-		camera_gpio_table[0].gpio = TEGRA_GPIO_PR2;  // EN_CAM_1V8#
-		camera_gpio_table[1].gpio = TEGRA_GPIO_PQ3;  // EN_CAM_2V8
-		camera_gpio_table[2].gpio = TEGRA_GPIO_PBB3; // OV5640_CAM_PWDN
-		camera_gpio_table[3].gpio = TEGRA_GPIO_PBB4; // OV5640_CAM_RST
-		camera_gpio_table[4].gpio = TEGRA_GPIO_PBB5; // OV9740_CAM_PWDN
-		camera_gpio_table[5].gpio = TEGRA_GPIO_PBB0; // OV9740_CAM_RST
+		camera_gpio_table[0].gpio = TEGRA_GPIO_PQ3;   // EN_CAM_1V8#
+		camera_gpio_table[1].gpio = TEGRA_GPIO_PR2;   // EN_CAM_2V8
+		camera_gpio_table[5].gpio = TEGRA_GPIO_PBB6;  // 2M_CAM_RST#
 	}
 
 	// initialize camera GPIOs
@@ -141,6 +143,7 @@ static int cardhu_camera_init(void)
 		gpio_direction_output(camera_gpio_table[i].gpio, camera_gpio_table[i].init);
 	}
 
+#if defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_MF)
 	// turn on camera power
 	gpio_direction_output(EN_CAM_1V8, 0);
 	msleep(3);
@@ -160,6 +163,22 @@ static int cardhu_camera_init(void)
 	gpio_direction_output(OV9740_CAM_RST,  1);
 	msleep(20);
 	gpio_direction_output(OV9740_CAM_PWDN, 1);
+#endif
+
+#if defined(CONFIG_MACH_PICASSO_E2)
+	// turn on camera power
+	gpio_direction_output(EN_CAM_1V8, 0);
+	msleep(3);
+	// do MT9D115 hardware reset and enter hardware standby mode
+	gpio_direction_output(MT9D115_CAM_RST,  0);
+	msleep(1);
+	gpio_direction_output(MT9D115_CAM_RST,  1);
+	msleep(1);
+	// AVDD should pull high after the RESET BAR pull high
+	gpio_direction_output(EN_CAM_2V8, 1);
+	msleep(1);
+	gpio_direction_output(MT9D115_CAM_PWDN, 1);
+#endif
 
 	return 0;
 
@@ -224,6 +243,41 @@ static struct ov9740_platform_data cardhu_ov9740_data = {
 };
 #endif
 
+#ifdef CONFIG_VIDEO_YUV
+static int cardhu_mt9d115_power_on(void)
+{
+	pr_info("%s\n", __func__);
+
+	// do MT9D115 hardware reset and enter hardware standby mode
+	gpio_direction_output(MT9D115_CAM_RST,  0);
+	msleep(1);
+	gpio_direction_output(MT9D115_CAM_RST,  1);
+	msleep(1);
+
+	gpio_direction_output(MT9D115_CAM_PWDN, 0);
+	// TODO: fine tune the delay time
+	msleep(20);
+
+	return 0;
+}
+
+static int cardhu_mt9d115_power_off(void)
+{
+	pr_info("%s\n", __func__);
+
+	gpio_direction_output(MT9D115_CAM_PWDN, 1);
+	// standby time need 2 frames
+	msleep(150);
+
+	return 0;
+}
+
+struct yuv_sensor_platform_data cardhu_mt9d115_data = {
+	.power_on = cardhu_mt9d115_power_on,
+	.power_off = cardhu_mt9d115_power_off,
+};
+#endif  // CONFIG_VIDEO_YUV
+
 static const struct i2c_board_info cardhu_camera_i2c3_board_info[] = {
 #if defined(CONFIG_VIDEO_OV5640)
 	{
@@ -237,13 +291,19 @@ static const struct i2c_board_info cardhu_camera_i2c3_board_info[] = {
 		.platform_data = &cardhu_ov9740_data,
 	},
 #endif
+#ifdef CONFIG_VIDEO_YUV
+	{
+		I2C_BOARD_INFO("mt9d115", 0x3C),
+		.platform_data = &cardhu_mt9d115_data,
+	},
+#endif
 #if defined(CONFIG_TORCH_TPS61050YZGR)
 	{
 		I2C_BOARD_INFO("tps61050", 0x33),
 	},
 #endif
 };
-#endif /* CONFIG_ARCH_ACER_T30 */
+#endif  // CONFIG_ARCH_ACER_T30
 
 #if !defined(CONFIG_ARCH_ACER_T30)
 static struct pca954x_platform_mode cardhu_pca954x_modes[] = {
@@ -899,20 +959,32 @@ static struct mpu_platform_data mpu_data = {
 	},
 	/* compass */
 	.compass = {
+#ifdef CONFIG_MACH_PICASSO_E2
+	.get_slave_descr = NULL,
+#else
 #ifdef CONFIG_INV_SENSORS_MODULE
 	.get_slave_descr = NULL,
 #else
 	.get_slave_descr = get_compass_slave_descr,
 #endif
+#endif
 	.irq         = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PX7),
 	.adapt_num   = 0,
 	.bus		= EXT_SLAVE_BUS_PRIMARY,
 	.address     = 0x0C,
+#ifdef CONFIG_MACH_PICASSO_E2
+	.orientation = {
+		0,  0,  0,
+		0,  0,  0,
+		0,  0,  0
+	},
+#else
 	.orientation = {
 		1,  0,  0,
 		0, -1,  0,
 		0,  0, -1
 	},
+#endif
 	},
 };
 
@@ -926,18 +998,19 @@ static struct i2c_board_info __initdata mpu3050_i2c0_boardinfo[] = {
 
 static void cardhu_mpu_power_on(void)
 	{
+	extern int acer_sku;
 	extern int acer_board_id;
 	extern int acer_board_type;
 	int ret;
 	int en_sensor_vdd;
 
-#if defined(CONFIG_MACH_PICASSO2)
-	if (acer_board_type == BOARD_PICASSO_2 && (acer_board_id == BOARD_DVT1 || acer_board_id == BOARD_EVT))
+#if defined(CONFIG_MACH_PICASSO_E2)
+	if (acer_board_id == BOARD_EVT && acer_sku == BOARD_SKU_WIFI)
 		en_sensor_vdd = SENSOR_3V3;
 	else
 		en_sensor_vdd = SENSOR_3V3_2;
 #else
-	en_sensor_vdd = SENSOR_3V3;
+	en_sensor_vdd = SENSOR_3V3_2;
 #endif
 	tegra_gpio_enable(en_sensor_vdd);//3.3
 	ret = gpio_request(en_sensor_vdd, "sensor_vdd_power_en");

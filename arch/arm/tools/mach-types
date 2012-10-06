@@ -1102,6 +1102,8 @@ sam9repeater		MACH_SAM9REPEATER	SAM9REPEATER		3424
 aruba			MACH_ARUBA		ARUBA			3437
 cardhu			MACH_CARDHU		CARDHU			3436
 tegra_enterprise	MACH_TEGRA_ENTERPRISE	TEGRA_ENTERPRISE	3512
+p1852			MACH_P1852		P1852			3651
+kai			MACH_KAI		KAI			3897
 p852			MACH_P852		P852			3667
 picasso			MACH_PICASSO		PICASSO			3403
 vangogh			MACH_VANGOGH    	VANGOGH			3430
@@ -1110,3 +1112,5 @@ vangogh2		MACH_VANGOGH2           VANGOGH2		3643
 picasso_e		MACH_PICASSO_E		PICASSO_E		3673
 picasso2                MACH_PICASSO2           PICASSO2                3642
 picasso_m               MACH_PICASSO_M          PICASSO_M               3834
+picasso_e2              MACH_PICASSO_E2         PICASSO_E2              4054
+picasso_mf              MACH_PICASSO_MF         PICASSO_MF              4055

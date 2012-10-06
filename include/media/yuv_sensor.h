@@ -31,65 +31,40 @@
 #define SENSOR_IOCTL_SET_EXPOSURE       _IOW('o', 8, int)
 #define SENSOR_IOCTL_GET_EXPOSURE_TIME  _IOW('o', 9, unsigned int)
 
+// must match with YUVCustomInfoEnum in nvomxcamerasettingsparser.h
 enum {
-	YUV_ColorEffect = 0,
-	YUV_Whitebalance,
-	YUV_SceneMode,
-	YUV_Exposure
+	// start from 1 in case atoi() encounters a string
+	// with no numerical sequence and returns 0
+	YUV_WhiteBalance = 2,
+	YUV_ColorEffect,
+	YUV_Exposure,
 };
 
+// must match with NvOmxCameraUserWhitebalanceEnum in nvomxcamerasettingsparser.h
 enum {
-	YUV_ColorEffect_Invalid = 0,
-	YUV_ColorEffect_Aqua,
-	YUV_ColorEffect_Blackboard,
-	YUV_ColorEffect_Mono,
-	YUV_ColorEffect_Negative,
-	YUV_ColorEffect_None,
-	YUV_ColorEffect_Posterize,
-	YUV_ColorEffect_Sepia,
-	YUV_ColorEffect_Solarize,
-	YUV_ColorEffect_Whiteboard
+	YUV_Whitebalance_Auto =1,
+	YUV_Whitebalance_Incandescent = 2,
+	YUV_Whitebalance_Fluorescent =3,
+	YUV_Whitebalance_Daylight =5,
+	YUV_Whitebalance_CloudyDaylight =6,
 };
 
+// must match with NvOmxCameraUserColorEffect in nvomxcamerasettingsparser.h
 enum {
-	YUV_Whitebalance_Invalid = 0,
-	YUV_Whitebalance_Auto,
-	YUV_Whitebalance_Incandescent,
-	YUV_Whitebalance_Fluorescent,
-	YUV_Whitebalance_WarmFluorescent,
-	YUV_Whitebalance_Daylight,
-	YUV_Whitebalance_CloudyDaylight,
-	YUV_Whitebalance_Shade,
-	YUV_Whitebalance_Twilight,
-	YUV_Whitebalance_Custom
+	YUV_ColorEffect_Mono     = 3,
+	YUV_ColorEffect_Negative = 4,
+	YUV_ColorEffect_None     = 5,
+	YUV_ColorEffect_Sepia    = 7,
+	YUV_ColorEffect_Solarize = 8,
 };
 
+// must match with the exposure value in programExposureYUV() in nvomxcamerasettings.cpp
 enum {
-	YUV_SceneMode_Invalid = 0,
-	YUV_SceneMode_Auto,
-	YUV_SceneMode_Action,
-	YUV_SceneMode_Portrait,
-	YUV_SceneMode_Landscape,
-	YUV_SceneMode_Beach,
-	YUV_SceneMode_Candlelight,
-	YUV_SceneMode_Fireworks,
-	YUV_SceneMode_Night,
-	YUV_SceneMode_NightPortrait,
-	YUV_SceneMode_Party,
-	YUV_SceneMode_Snow,
-	YUV_SceneMode_Sports,
-	YUV_SceneMode_SteadyPhoto,
-	YUV_SceneMode_Sunset,
-	YUV_SceneMode_Theatre,
-	YUV_SceneMode_Barcode
-};
-
-enum {
-	YUV_Exposure_Negative_2 = -2,
-	YUV_Exposure_Negative_1,
-	YUV_Exposure_0,
-	YUV_Exposure_1,
-	YUV_Exposure_2
+	YUV_Exposure_Minus_Two,
+	YUV_Exposure_Minus_One,
+	YUV_Exposure_Zero,
+	YUV_Exposure_Plus_One,
+	YUV_Exposure_Plus_Two,
 };
 
 struct sensor_mode {

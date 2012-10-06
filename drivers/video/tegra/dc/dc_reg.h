@@ -367,6 +367,7 @@
 #define DC_DISP_MCCIF_DISPLAY1B_HYST		0x484
 #define DC_DISP_DAC_CRT_CTRL			0x4c0
 #define DC_DISP_DISP_MISC_CONTROL		0x4c1
+#define   UF_LINE_FLUSH                         (1 << 1)
 
 #define DC_WIN_COLOR_PALETTE(x)			(0x500 + (x))
 
@@ -548,7 +549,16 @@
 #define  SD_MAN_K_G(x)			(((x) & 0x3ff) << 10)
 #define  SD_MAN_K_B(x)			(((x) & 0x3ff) << 20)
 
+#if defined(CONFIG_MACH_PICASSO_MF)
+/* When turn on balance mode, NvCPL set 29 (priority=3, level=5) into aggressiveness.
+ * When turn off balance mode, NvCPL set 24 (priority=3, level=0) into aggressiveness.
+ * In our design, the didim level should be equal to normal case.
+ * So we have to ignore that the setting is from NvCPL,
+ * and therefore we decrease the number of priority. */
+#define  NUM_AGG_PRI_LVLS		3
+#else
 #define  NUM_AGG_PRI_LVLS		4
+#endif
 #define  SD_AGG_PRI_LVL(x)		((x) >> 3)
 #define  SD_GET_AGG(x)			((x) & 0x7)
 

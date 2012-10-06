@@ -25,12 +25,17 @@
 #include <linux/input/mxt1386e_pm.h>
 #elif defined(CONFIG_MACH_PICASSO2)
 #include <linux/input/mxt1386e_p2.h>
+#elif defined(CONFIG_MACH_PICASSO_MF)
+#include <linux/input/mxt1386e_pmf.h>
+#else
+#include <linux/input/mxt1386e_p2.h>
 #endif
 
 #define ATMEL1386E_IOCTL_MAGIC 't'
 #define ATMEL1386E_FirmwareVersion            _IOR(ATMEL1386E_IOCTL_MAGIC, 0x01, int)
 #define ATMEL1386E_CHGPinStatus               _IOR(ATMEL1386E_IOCTL_MAGIC, 0x02, int)
 #define ATMEL1386E_T6_REGVALUE                _IOR(ATMEL1386E_IOCTL_MAGIC, 0x03, int)
+#define ATMEL1386E_CHECKSUMVALUE              _IOR(ATMEL1386E_IOCTL_MAGIC, 0x04, int)
 
 /* Debug levels */
 #define DEBUG_DETAIL                          2
@@ -42,6 +47,7 @@
 #define TP_LDO_EN                             TEGRA_GPIO_PB0
 #define TP_RST                                TEGRA_GPIO_PI2
 #define TP_INT                                TEGRA_GPIO_PJ0
+#define sens_num (sizeof(sensitivity_ver_table) / sizeof(struct sensitvity_ver_mapping) - 1)
 
 struct point_data {
 	short Status;
@@ -69,6 +75,7 @@ static bool sencheck = 0;
 /* Other parameters for touch events */
 static int i2cfail_esd = 0;
 static int LastUpdateID = 0;
+static struct sensitivity_mapping sensitivity_table[TOUCH_SENSITIVITY_SYMBOL_COUNT];
 
 u16 T05_OBJAddr; /* Message Processor Byte0 = ID, Byte1 = AddrL, Byte2 = AddrH */
 u16 T06_OBJAddr; /* Command Processor */
@@ -492,6 +499,13 @@ static void touch_worker(struct work_struct *work)
 		i2cfail_esd = 0;
 	}
 
+	if (buffer[0] == 0x01) {
+		/* parameters for counting checksum */
+		checksum[0] = buffer[2];
+		checksum[1] = buffer[3];
+		checksum[2] = buffer[4];
+	}
+
 	/* touch id from firmware begins from 2 */
 	if (buffer[0] >= 2 && buffer[0] <= NUM_FINGERS+1) {
 		ContactID = buffer[0] - 2 ;
@@ -518,7 +532,7 @@ static void touch_worker(struct work_struct *work)
 			mxt_debug(DEBUG_DETAIL, "Finger Touch!!\n");
 		} else if (buffer[1] & 0x02) {
 			mxt->PointBuf[ContactID].Status = 0;
-			mxt_debug(DEBUG_DETAIL, "Palm Suppresion!!\n");
+			mxt_debug(DEBUG_ERROR, "Palm Suppresion!!\n");
 		} else if (buffer[1] == 0x00) {
 			ContactID = 255;
 			mxt_debug(DEBUG_DETAIL, "this point is not touch or release\n");
@@ -541,16 +555,23 @@ static void touch_worker(struct work_struct *work)
 	/* Send point report to Android */
 	if ((ContactID <= LastUpdateID) || (mxt->PointBuf[i].Status >= 0)) {
 		for(i=0; i<NUM_FINGERS; i++) {
-			mxt_debug(DEBUG_BASIC, "Point[%2d] status: %2d X: %4d Y: %4d\n",
-				i, mxt->PointBuf[i].Status, mxt->PointBuf[i].X, mxt->PointBuf[i].Y);
-			/* Report Message*/
-			input_report_abs(mxt->input, ABS_MT_TRACKING_ID, i);
-			input_report_abs(mxt->input, ABS_MT_TOUCH_MAJOR, mxt->PointBuf[i].Status);
-			input_report_abs(mxt->input, ABS_MT_POSITION_X, mxt->PointBuf[i].X);
-			input_report_abs(mxt->input, ABS_MT_POSITION_Y, mxt->PointBuf[i].Y);
-			input_report_abs(mxt->input, ABS_MT_PRESSURE, mxt->PointBuf[i].Status);
-
-			input_mt_sync(mxt->input);
+			if (mxt->PointBuf[i].Status >= 0) {
+				mxt_debug(DEBUG_BASIC, "Point[%2d] status: %2d X: %4d Y: %4d\n",
+					i, mxt->PointBuf[i].Status, mxt->PointBuf[i].X, mxt->PointBuf[i].Y);
+				/* Report Message*/
+				if (mxt->PointBuf[i].Status > 0) {
+					input_report_abs(mxt->input, ABS_MT_TRACKING_ID, i);
+					input_report_abs(mxt->input, ABS_MT_TOUCH_MAJOR, mxt->PointBuf[i].Status);
+					input_report_abs(mxt->input, ABS_MT_POSITION_X, mxt->PointBuf[i].X);
+					input_report_abs(mxt->input, ABS_MT_POSITION_Y, mxt->PointBuf[i].Y);
+					input_report_abs(mxt->input, ABS_MT_PRESSURE, mxt->PointBuf[i].Status);
+				}
+				/*  the driver should send an empty sync report packet */
+				input_mt_sync(mxt->input);
+				/* Change the status of the point */
+				if (mxt->PointBuf[i].Status == 0)
+					mxt->PointBuf[i].Status--;
+			}
 		}
 		input_sync(mxt->input);
 	}
@@ -761,6 +782,7 @@ static ssize_t sensitivity_store(struct kobject *kobj, struct kobj_attribute *at
 		mxt_debug(DEBUG_ERROR, "sensitivity_store fail\n");
 	if (ATMEL_Backup(mxt) < 0)
 		mxt_debug(DEBUG_ERROR, "mXT1386E: ATMEL_Backup failed\n");
+	mxt_debug(DEBUG_ERROR, "sensitivity_table[%d]: %d\n", symbol, sensitivity_table[symbol].value);
 	return n;
 }
 
@@ -787,9 +809,9 @@ static ssize_t filter_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		if (mxt_write_block(mxt->client, addr, 3, filter_value) < 0)
 			mxt_debug(DEBUG_ERROR, "filter_store fail\n");
 	} else {
-		filter_value[0] = 5;
-		filter_value[1] = 5;
-		filter_value[2] = 32;
+		filter_value[0] = T09OBJ[11];
+		filter_value[1] = T09OBJ[12];
+		filter_value[2] = T09OBJ[13];
 		if (mxt_write_block(mxt->client, addr, 3, filter_value) < 0)
 			mxt_debug(DEBUG_ERROR, "filter_store fail\n");
 	}
@@ -1008,8 +1030,8 @@ static int ATMEL_CheckOBJTableCRC(struct mxt_data *mxt)
 	ATMEL_CalOBJ_ID_Addr(T18, T18OBJInf);
 	CalculateAddr16bits(T18OBJInf[2], T18OBJInf[1], &T18_OBJAddr, 0);
 
-	ATMEL_CalOBJ_ID_Addr(T24, T25OBJInf);
-	CalculateAddr16bits(T24OBJInf[2], T24OBJInf[1], &T24_OBJAddr, 0);
+	ATMEL_CalOBJ_ID_Addr(T24, T24OBJInf);
+	CalculateAddr16bits(T24OBJInf[3], T24OBJInf[2], &T24_OBJAddr, 0);
 
 	ATMEL_CalOBJ_ID_Addr(T25, T25OBJInf);
 	CalculateAddr16bits(T25OBJInf[2], T25OBJInf[1], &T25_OBJAddr, 0);
@@ -1077,8 +1099,8 @@ static int ATMEL_CheckOBJTableCRC(struct mxt_data *mxt)
 				T19OBJInf[2], T19OBJInf[1], T19OBJInf[0], T19_OBJAddr);
 
 		mxt_debug(DEBUG_DETAIL, "T24\n");
-		mxt_debug(DEBUG_DETAIL, "T24[2]:0x%x, T24[1]:0x%x, T24[0]:0x%x T24:0x%x\n",
-				T24OBJInf[2], T24OBJInf[1], T24OBJInf[0], T24_OBJAddr);
+		mxt_debug(DEBUG_DETAIL, "T24[3]:0x%x T24[2]:0x%x, T24[1]:0x%x, T24[0]:0x%x T24:0x%x\n",
+				T24OBJInf[3], T24OBJInf[2], T24OBJInf[1], T24OBJInf[0], T24_OBJAddr);
 
 		mxt_debug(DEBUG_DETAIL, "T25\n");
 		mxt_debug(DEBUG_DETAIL, "T25[2]:0x%x, T25[1]:0x%x, T25[0]:0x%x T25:0x%x\n",
@@ -1352,6 +1374,8 @@ static int ATMEL_ConfigcheckCRC(struct mxt_data *mxt)
 	u8 val[1] = {1};
 	u16 addr16;
 	u32 checksum32;
+	int i, j;
+	int check_config = 1;
 
 	mxt_debug(DEBUG_DETAIL, "mXT1386E: ATMEL_ConfigcheckCRC\n");
 
@@ -1363,18 +1387,46 @@ static int ATMEL_ConfigcheckCRC(struct mxt_data *mxt)
 	checksum32 = (checksum32 << 8) + checksum[1];
 	checksum32 = (checksum32 << 8) + checksum[0];
 
-	mxt_debug(DEBUG_ERROR,"mXT1386E: checksum should be %d\n", ConfigChecksum);
-
-	if (checksum32 != ConfigChecksum) {
-		mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is %d\n", checksum32);
-		mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is error\n");
-		ConfigChecksumError = 1;
-	} else {
-		mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is %d\n", checksum32);
-		mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is right\n");
-		ConfigChecksumError = 0;
+	mxt_debug(DEBUG_ERROR, "mXT1386E: sens_num: %d\n", sens_num);
+	for(j=0; j<TOUCH_SENSITIVITY_SYMBOL_COUNT; j++) {
+		mxt_debug(DEBUG_ERROR,"mXT1386E: checksum should be %d\n",
+			sensitivity_ver_table[sens_num].sens_ver_mapping[j].checksum_config);
 	}
 
+	for(j=0; j<TOUCH_SENSITIVITY_SYMBOL_COUNT; j++) {
+		if (checksum32 == sensitivity_ver_table[sens_num].sens_ver_mapping[j].checksum_config) {
+			mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is %8d\n", checksum32);
+			mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is right\n");
+			mxt_debug(DEBUG_ERROR,"mXT1386E: Now sensitivity:%2d\n", sens_val[0]);
+			check_config = 0;
+			ConfigChecksumError = 0;
+			break;
+		}
+	}
+
+	/* Mapping sensitivity level by the checksum. */
+	if (check_config) {
+		mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is %8d\n", checksum32);
+		mxt_debug(DEBUG_ERROR,"mXT1386E: Now checksum is error\n");
+		for( i=0; i < sens_num; i++) {
+			for(j=0; j<TOUCH_SENSITIVITY_SYMBOL_COUNT; j++) {
+				if(sensitivity_ver_table[i].sens_ver_mapping[j].value == sens_val[0]) {
+					if(sensitivity_ver_table[i].sens_ver_mapping[j].checksum_config == checksum32) {
+						sens_val[0] =  sensitivity_ver_table[sens_num].sens_ver_mapping[j].value;
+						mxt_debug(DEBUG_ERROR,"mXT1386E: [%d][%d]sensitivity should be %2d\n", i, j, sens_val[0]);
+						break;
+					}
+				}
+			}
+		}
+		/* If it can't be mapped and it will use the default value */
+		if (i == sens_num) {
+			sens_val[0] =  sensitivity_ver_table[sens_num].sens_ver_mapping[TOUCH_SENSITIVITY_SYMBOL_DEFAULT].value;
+			mxt_debug(DEBUG_ERROR,"mXT1386E: sensitivity should be default %2d\n", sens_val[0]);
+		}
+		ConfigChecksumError = 1;
+
+	}
 	return 0;
 }
 
@@ -1405,6 +1457,8 @@ static int ATMEL_Touch_Init(struct mxt_data *mxt)
 	CalculateAddr16bits(T09OBJInf[2], T09OBJInf[1], &sens_addr, 7);
 	if (mxt_write_block(mxt->client, sens_addr, 1, sens_val) < 0)
 		mxt_debug(DEBUG_ERROR, "Write T09OBJInf fail\n");
+
+	mxt_debug(DEBUG_ERROR,"mXT1386E: Write sensitivity value: %d\n", sens_val[0]);
 
 	if (ATMEL_Backup(mxt) < 0) {
 		mxt_debug(DEBUG_ERROR, "mXT1386E: ATMEL_Backup failed\n");
@@ -1452,7 +1506,7 @@ static int ATMEL_Init_OBJ(struct mxt_data *mxt)
 			mxt_debug(DEBUG_ERROR, "Read T09_OBJAddr fail\n");
 		sens_val[0] = sens_buf[7];
 		sencheck = 1;
-		mxt_debug(DEBUG_DETAIL, "sensitivity value: 0x%x\n",sens_buf[7]);
+		mxt_debug(DEBUG_ERROR, "Read sensitivity value: %d\n",sens_buf[7]);
 	}
 
 	return 0;
@@ -1544,6 +1598,7 @@ static long ATMEL1386E_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	void __user *argp = (void __user *)arg;
 	long rc = 0;
 	int status = 0;
+	u32 checksum_value = 0;
 
 	switch (cmd) {
 
@@ -1552,20 +1607,33 @@ static long ATMEL1386E_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			/* Touch event should not be dealt when firmware is updating */
 			disable_irq(mxt->touch_irq);
 			if (copy_to_user((void*)argp, &Firmware_Info, sizeof(Firmware_Info)))
-				return -EFAULT;
+				rc = -EINVAL;
 			break;
 
 		case ATMEL1386E_CHGPinStatus:
 
 			status = gpio_get_value(TP_INT);
 			if (copy_to_user((void*)argp, &status, sizeof(status)))
-				return -EFAULT;
+				rc = -EINVAL;
 			break;
 
 		case ATMEL1386E_T6_REGVALUE:
 
 			if (copy_to_user((void*)argp, &T06_OBJAddr, sizeof(T06_OBJAddr)))
-				return -EFAULT;
+				rc = -EINVAL;
+			break;
+
+		case ATMEL1386E_CHECKSUMVALUE:
+
+			checksum_value = checksum[2];
+			checksum_value = (checksum_value << 8) + checksum[1];
+			checksum_value = (checksum_value << 8) + checksum[0];
+			mxt_debug(DEBUG_ERROR, "mXT1386E: checksum[0]: %d (0x%2X)\n", checksum[0], checksum[0]);
+			mxt_debug(DEBUG_ERROR, "mXT1386E: checksum[1]: %d (0x%2X)\n", checksum[1], checksum[1]);
+			mxt_debug(DEBUG_ERROR, "mXT1386E: checksum[2]: %d (0x%2X)\n", checksum[2], checksum[2]);
+			mxt_debug(DEBUG_ERROR, "mXT1386E: checksum_value: %d (0x%2X)\n", checksum_value, checksum_value);
+			if (copy_to_user((void*)argp, &checksum_value, sizeof(checksum_value)))
+				rc = -EINVAL;
 			break;
 
 		default:
@@ -1597,6 +1665,11 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int error, i;
 
 	mxt_debug(DEBUG_DETAIL, "mXT1386E: mxt_probe\n");
+
+	for(i=0; i<TOUCH_SENSITIVITY_SYMBOL_COUNT; i++) {
+		sensitivity_table[i] = sensitivity_ver_table[sens_num].sens_ver_mapping[i];
+		mxt_debug(DEBUG_ERROR, "mXT1386E: sensitivity[%d] = %d\n", i, sensitivity_table[i].value);
+	}
 
 	if (client == NULL) {
 		mxt_debug(DEBUG_ERROR, "mXT1386E: client == NULL\n");

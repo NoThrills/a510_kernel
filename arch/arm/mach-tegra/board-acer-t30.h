@@ -248,14 +248,18 @@ int acer_keys_init(void);
 #define TDIODE_OFFSET	(10000)	/* in millicelsius */
 
 /* Board Type */
-#define BOARD_PICASSO_2 0
-#define BOARD_PICASSO_M 1
+#define BOARD_PICASSO_2  0
+#define BOARD_PICASSO_M  1
+#define BOARD_PICASSO_MF 2
+#define BOARD_PICASSO_E2 3
 
 /* Board ID */
 #define BOARD_EVT       0
 #define BOARD_DVT1      1
 #define BOARD_DVT2      2
-#define BOARD_PVT       3
+#define BOARD_PVT1      3
+#define BOARD_PVT2      4
+#define BOARD_PRE_MP    5
 
 /* SKU type */
 #define BOARD_SKU_WIFI  0

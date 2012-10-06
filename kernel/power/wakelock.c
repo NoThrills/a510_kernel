@@ -266,6 +266,7 @@ static void suspend(struct work_struct *work)
 		return;
 	}
 
+	pr_info("suspend:suspend\n");
 	entry_event_num = current_event_num;
 	sys_sync();
 	if (debug_mask & DEBUG_SUSPEND)

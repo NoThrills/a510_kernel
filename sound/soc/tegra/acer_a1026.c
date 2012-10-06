@@ -62,7 +62,7 @@ static struct tegra_pingroup_config ES_305_UART_MODE[] = {
 };
 
 static struct tegra_pingroup_config ES_305_GPIO_MODE[] = {
-	DEFAULT_PINMUX(ULPI_CLK,        RSVD,            NORMAL,    NORMAL,     OUTPUT),
+	DEFAULT_PINMUX(ULPI_CLK,        RSVD,            PULL_UP,    NORMAL,     OUTPUT),
 };
 
 #define AUDIENCE_A1026_NAME "audience_a1026"
@@ -250,16 +250,15 @@ static ssize_t a1026_bootup_init(struct file *file, struct a1026img *img)
 		break;
 	}
 
+	rc = config_wakeup_gpio();
+	msleep(10);
+
 	if (!a1026_suspend_es305())
 		pr_info("%s: a1026 suspend command okay \n", __func__);
 	else {
 		pr_err("%s: suspend procedure error!!! \n", __func__);
-		goto set_suspend_err;
 	}
 
-	rc = config_wakeup_gpio();
-
-set_suspend_err:
 	if (pass && !rc)
 		pr_info("%s: initialized!\n", __func__);
 	else
@@ -321,7 +320,7 @@ int execute_cmdmsg(unsigned int msg)
 			pr_err("%s: illegal cmd %08x\n", __func__, msg);
 			rc = -EINVAL;
 			break;
-		} else if ( msgbuf[0] == 0x00 && msgbuf[1] == 0x00 ) {
+		} else if (msgbuf[0] == 0x00 && msgbuf[1] == 0x00) {
 			pr_info("%s: not ready (%d retries)\n", __func__,
 				retries);
 			rc = -EBUSY;
@@ -363,15 +362,7 @@ ssize_t chk_wakeup_a1026(void)
 
 		if (rc < 0) {
 			pr_err("%s: failed (%d)\n", __func__, rc);
-			goto wakeup_sync_err;
-		}
-
-		do {
-			rc = execute_cmdmsg(PassThrough_Disable);
-		} while ((rc < 0) && --retry);
-
-		if (rc < 0) {
-			pr_err("%s: failed (%d)\n", __func__, rc);
+			acer_set_bypass_switch(0);
 			goto wakeup_sync_err;
 		}
 
@@ -435,14 +426,18 @@ static int a1026_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&a1026_lock);
 
+#if DISABLE_A1026_TOOLS_PERMISSION
 	if (a1026_opened) {
 		pr_err("%s: busy\n", __func__);
 		rc = -EBUSY;
 		goto done;
 	}
+#endif
 
 	a1026_opened = 1;
+#if DISABLE_A1026_TOOLS_PERMISSION
 done:
+#endif
 	mutex_unlock(&a1026_lock);
 	return rc;
 }
@@ -471,14 +466,15 @@ static ssize_t a1026_uart_sync_command(void)
 		goto set_sync_err;
 	}
 
+	rc = config_wakeup_gpio();
+	msleep(10);
+
 	if (!a1026_suspend_es305())
 		pr_info("%s: a1026 suspend command okay \n", __func__);
 	else {
 		pr_err("%s: suspend procedure error!!! \n", __func__);
 		goto set_suspend_err;
 	}
-
-	rc = config_wakeup_gpio();
 
 	acer_set_bypass_switch(0);
 
@@ -558,7 +554,7 @@ static ssize_t a1026_set_config(int newid)
 			rc = execute_cmdmsg(T30CM_CAMCORDER_INTMIC_REAR);
 			break;
 		case A1026_TABLE_CAMCORDER_EXTMIC:
-			rc = execute_cmdmsg(A1026_TABLE_CAMCORDER_EXTMIC);
+			rc = execute_cmdmsg(T30CM_CAMCORDER_EXTMIC);
 			break;
 		case A1026_TABLE_30CM_ASR_INTMIC:
 			rc = execute_cmdmsg(T30CM_ASR_INTMIC);
@@ -585,6 +581,9 @@ static ssize_t a1026_set_config(int newid)
 			rc = execute_cmdmsg(SOUNDHOUND_EXTMIC);
 			break;
 		case A1026_TABLE_ES305_PLAYBACK:
+			if ((a1026_current_config == A1026_TABLE_VOIP_INTMIC) ||
+			    (a1026_current_config == A1026_TABLE_VOIP_EXTMIC))
+			    a1026_i2c_sw_reset(ES305_SW_RESET);
 			rc = execute_cmdmsg(ES305_PLAYBACK);
 			break;
 		case A1026_TABLE_CTS:
@@ -628,7 +627,7 @@ static ssize_t a1026_suspend_es305(void)
 	a1026_suspended = 1;
 	a1026_current_config = A1026_TABLE_SUSPEND;
 
-	msleep(50);
+	msleep(120);
 	/* Disable A1026 clock */
 	if (control_a1026_clk)
 		gpio_set_value(a1026_data.pdata->gpio_a1026_clk, 0);
@@ -645,6 +644,10 @@ static long a1026_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct a1026img img;
 	int rc = 0;
 	int pathid = 0;
+	unsigned NoiseLevelValue = 0;
+	unsigned WideningModeValue = 0;
+	unsigned WideningGainValue = 0;
+
 #if ENABLE_DIAG_IOCTLS
 	char msg[4];
 #endif
@@ -675,6 +678,48 @@ static long a1026_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (rc < 0)
 				pr_err("%s: A1026_SET_CONFIG (%d) error %d!\n",
 					__func__, pathid, rc);
+			break;
+		case A1026_NOISE_LEVEL:
+			if (copy_from_user(&NoiseLevelValue, argp, sizeof(NoiseLevelValue)))
+				return -EFAULT;
+
+			rc = execute_cmdmsg(NOISE_LEVEL_COMMAND);
+			if (rc < 0)
+				pr_err("%s: A1026_NOISE_LEVEL (%d) error %d!\n",
+					__func__, NoiseLevelValue, rc);
+
+			rc = execute_cmdmsg(NoiseLevelValue);
+			if (rc < 0)
+				pr_err("%s: A1026_NOISE_LEVEL (%d) error %d!\n",
+					__func__, NoiseLevelValue, rc);
+			break;
+		case A1026_WIDENING_MODE:
+			if (copy_from_user(&WideningModeValue, argp, sizeof(WideningModeValue)))
+				return -EFAULT;
+
+			rc = execute_cmdmsg(WIDENING_MODE_COMMAND);
+			if (rc < 0)
+				pr_err("%s: A1026_WIDENING_MODE (%x) error %d!\n",
+					__func__, WideningModeValue, rc);
+
+			rc = execute_cmdmsg(WideningModeValue);
+			if (rc < 0)
+				pr_err("%s: A1026_WIDENING_MODE (%x) error %d!\n",
+					__func__, WideningModeValue, rc);
+			break;
+		case A1026_WIDENING_GAIN:
+			if (copy_from_user(&WideningGainValue, argp, sizeof(WideningGainValue)))
+				return -EFAULT;
+
+			rc = execute_cmdmsg(WIDENING_GAIN_COMMAND);
+			if (rc < 0)
+				pr_err("%s: A1026_WIDENING_GAIN (%x) error %d!\n",
+					__func__, WideningGainValue, rc);
+
+			rc = execute_cmdmsg(WideningGainValue);
+			if (rc < 0)
+				pr_err("%s: A1026_WIDENING_GAIN (%x) error %d!\n",
+					__func__, WideningGainValue, rc);
 			break;
 #if ENABLE_DIAG_IOCTLS
 		case A1026_SYNC_CMD:
@@ -791,6 +836,8 @@ static int a1026_remove(struct i2c_client *client)
 
 static int a1026_suspend(struct i2c_client *client, pm_message_t mesg)
 {
+	chk_wakeup_a1026();
+	a1026_suspend_es305();
 	return 0;
 }
 
@@ -827,7 +874,7 @@ static int __init a1026_init(void)
 		return res;
 	}
 
-	pr_info("[a1026] a1026 device init ok!\n");
+	pr_info("[a1026] a1026 i2c init ok!\n");
 	return 0;
 }
 

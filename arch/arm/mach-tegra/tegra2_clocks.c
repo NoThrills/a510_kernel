@@ -468,13 +468,13 @@ static int tegra2_cpu_clk_set_rate(struct clk *c, unsigned long rate)
 		goto out;
 	}
 
+out:
 	/* We can't parent the twd to directly to the CPU complex because
 	   the TWD frequency update notifier is called in an atomic context
 	   and the CPU frequency update requires a mutex. Update the twd
 	   clock rate with the new CPU complex rate. */
 	clk_set_rate(&tegra2_clk_twd, clk_get_rate_locked(c));
 
-out:
 	clk_disable(c->u.cpu.main);
 	return ret;
 }
@@ -2376,6 +2376,8 @@ struct clk tegra_list_periph_clks[] = {
 	PERIPH_CLK("timer",	"timer",		NULL,	5,	0,	0x31E,	26000000,  mux_clk_m,			0),
 	PERIPH_CLK("i2s1",	"tegra20-i2s.0",	NULL,	11,	0x100,	0x31E,	26000000,  mux_pllaout0_audio2x_pllp_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
 	PERIPH_CLK("i2s2",	"tegra20-i2s.1",	NULL,	18,	0x104,	0x31E,	26000000,  mux_pllaout0_audio2x_pllp_clkm,	MUX | DIV_U71 | PERIPH_ON_APB),
+	PERIPH_CLK("fuse",	"fuse-tegra",		"fuse",	39,	0,	0x31E,	26000000,  mux_clk_m,			PERIPH_ON_APB),
+	PERIPH_CLK("fuse_burn",	"fuse-tegra",		"fuse_burn",	39,	0,	0x31E,	26000000,  mux_clk_m,		PERIPH_ON_APB),
 	PERIPH_CLK("kfuse",	"kfuse-tegra",		NULL,	40,	0,	0x31E,  26000000,  mux_clk_m,			0),
 	PERIPH_CLK("fuse",	"fuse-tegra",		"fuse",	39,	0,	0x31E,	26000000,  mux_clk_m,			PERIPH_ON_APB),
 	PERIPH_CLK("fuse_burn",	"fuse-tegra",		"fuse_burn",	39,     0,	0x31E,	26000000,  mux_clk_m,		PERIPH_ON_APB),
@@ -2690,7 +2692,9 @@ struct tegra_cpufreq_table_data *tegra_cpufreq_table_get(void)
 unsigned long tegra_emc_to_cpu_ratio(unsigned long cpu_rate)
 {
 	/* Vote on memory bus frequency based on cpu frequency */
-	if (cpu_rate >= 816000)
+	if (cpu_rate > 1000000000)
+		return 760000000;
+	else if (cpu_rate >= 816000)
 		return 600000000;	/* cpu 816 MHz, emc max */
 	else if (cpu_rate >= 608000)
 		return 300000000;	/* cpu 608 MHz, emc 150Mhz */

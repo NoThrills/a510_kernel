@@ -194,6 +194,7 @@ int tegra_pinmux_get_pingroup(int gpio_nr)
 {
 	return gpio_to_pingroups_map[gpio_nr];
 }
+EXPORT_SYMBOL_GPL(tegra_pinmux_get_pingroup);
 
 static int tegra_pinmux_set_func(const struct tegra_pingroup_config *config)
 {
@@ -320,7 +321,27 @@ int tegra_pinmux_set_tristate(enum tegra_pingroup pg,
 	return 0;
 }
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+int tegra_pinmux_set_io(enum tegra_pingroup pg,
+	enum tegra_pin_io input)
+{
+#if defined(TEGRA_PINMUX_HAS_IO_DIRECTION)
+	unsigned long io;
+
+	if (pg < 0 || pg >=  TEGRA_MAX_PINGROUP)
+		return -ERANGE;
+
+	io = pg_readl(pingroups[pg].mux_reg);
+	if (input)
+		io |= 0x20;
+	else
+		io &= ~(1 << 5);
+	pg_writel(io, pingroups[pg].mux_reg);
+#endif
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_pinmux_set_io);
+
+#if defined(CONFIG_ARCH_ACER_T30)
 int tegra_pinmux_set_suspend_state(const struct tegra_pingroup_config *config)
 {
 	unsigned long reg;
@@ -487,6 +508,37 @@ int tegra_pinmux_set_pullupdown(enum tegra_pingroup pg,
 
 	return 0;
 }
+
+#if defined(CONFIG_ARCH_ACER_T30)
+int tegra_pinmux_set_e_input(enum tegra_pingroup pg,
+	enum tegra_e_input e_input)
+{
+	unsigned long reg;
+	unsigned long flags;
+
+	if (pg < 0 || pg >=  TEGRA_MAX_PINGROUP)
+		return -ERANGE;
+
+	if (pingroups[pg].pupd_reg <= 0)
+		return -EINVAL;
+
+	if (e_input != TEGRA_E_INPUT_DISABLE &&
+	    e_input != TEGRA_E_INPUT_ENABLE)
+		return -EINVAL;
+
+
+	spin_lock_irqsave(&mux_lock, flags);
+
+	reg = pg_readl(pingroups[pg].pupd_reg);
+	reg &= ~(0x1 << 5);
+	reg |= e_input << 5;
+	pg_writel(reg, pingroups[pg].pupd_reg);
+
+	spin_unlock_irqrestore(&mux_lock, flags);
+
+	return 0;
+}
+#endif
 
 static void tegra_pinmux_config_pingroup(const struct tegra_pingroup_config *config)
 {

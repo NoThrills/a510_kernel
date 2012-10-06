@@ -98,8 +98,10 @@ next:
 
 	*bh = sb_bread(sb, phys);
 	if (*bh == NULL) {
+#ifndef CONFIG_ARCH_ACER_T30
 		printk(KERN_ERR "FAT: Directory bread(block %llu) failed\n",
 		       (llu)phys);
+#endif
 		/* skip this block */
 		*pos = (iblock + 1) << sb->s_blocksize_bits;
 		goto next;

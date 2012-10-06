@@ -2,7 +2,7 @@
  * arch/arm/mach-tegra/common.c
  *
  * Copyright (C) 2010 Google, Inc.
- * Copyright (C) 2010-2011 NVIDIA Corporation
+ * Copyright (C) 2010-2012 NVIDIA Corporation
  *
  * Author:
  *	Colin Cross <ccross@android.com>
@@ -93,6 +93,9 @@ unsigned long tegra_lp0_vec_start;
 unsigned long tegra_lp0_vec_size;
 bool tegra_lp0_vec_relocate;
 unsigned long tegra_grhost_aperture = ~0ul;
+#ifdef CONFIG_ACER_RAM_LOG
+static   bool is_tegra_acer_ramlog_enabled;
+#endif
 static   bool is_tegra_debug_uart_hsport;
 static struct board_info pmu_board_info;
 static struct board_info display_board_info;
@@ -139,9 +142,9 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	{ "pll_p",	NULL,		216000000,	true },
 	{ "pll_p_out1",	"pll_p",	28800000,	true },
-	{ "pll_p_out2",	"pll_p",	48000000,	true },
+	{ "pll_p_out2",	"pll_p",	48000000,	false },
 	{ "pll_p_out3",	"pll_p",	72000000,	true },
-	{ "pll_p_out4",	"pll_p",	108000000,	true },
+	{ "pll_p_out4",	"pll_p",	108000000,	false },
 	{ "pll_m",	"clk_m",	0,		true },
 	{ "pll_m_out1",	"pll_m",	120000000,	true },
 	{ "sclk",	"pll_c_out1",	40000000,	true },
@@ -154,10 +157,10 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "2d",		"pll_c",	0,		false },
 	{ "3d",		"pll_c",	0,		false },
 #else
-	{ "pll_p",	NULL,		408000000,	true },
-	{ "pll_p_out1",	"pll_p",	9600000,	true },
-	{ "pll_p_out2",	"pll_p",	48000000,	true },
-	{ "pll_p_out3",	"pll_p",	102000000,	true },
+	{ "pll_p",	NULL,		0,		true },
+	{ "pll_p_out1",	"pll_p",	0,		false },
+	{ "pll_p_out2",	"pll_p",	48000000,	false },
+	{ "pll_p_out3",	"pll_p",	0,		true },
 	{ "pll_m_out1",	"pll_m",	275000000,	false },
 	{ "pll_p_out4",	"pll_p",	102000000,	true },
 	{ "sclk",	"pll_p_out4",	102000000,	true },
@@ -166,13 +169,13 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 #endif
 #else
 	{ "pll_p",	NULL,		216000000,	true },
-	{ "pll_p_out1",	"pll_p",	28800000,	true },
-	{ "pll_p_out2",	"pll_p",	48000000,	true },
+	{ "pll_p_out1",	"pll_p",	28800000,	false },
+	{ "pll_p_out2",	"pll_p",	48000000,	false },
 	{ "pll_p_out3",	"pll_p",	72000000,	true },
 	{ "pll_m_out1",	"pll_m",	275000000,	true },
 	{ "pll_c",	NULL,		ULONG_MAX,	false },
 	{ "pll_c_out1",	"pll_c",	208000000,	false },
-	{ "pll_p_out4",	"pll_p",	108000000,	true },
+	{ "pll_p_out4",	"pll_p",	108000000,	false },
 	{ "sclk",	"pll_p_out4",	108000000,	true },
 	{ "hclk",	"sclk",		108000000,	true },
 	{ "pclk",	"hclk",		54000000,	true },
@@ -186,9 +189,12 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sdmmc1",	"pll_p",	48000000,	false},
 	{ "sdmmc3",	"pll_p",	48000000,	false},
 	{ "sdmmc4",	"pll_p",	48000000,	false},
+	{ "pll_a",	"pll_p_out1",	0,		false},
+	{ "pll_a_out0",	"pll_a",	0,		false},
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	{ "cbus",	"pll_c",	416000000,	false },
 	{ "pll_c_out1",	"pll_c",	208000000,	false },
+	{ "mselect",	"pll_p",	102000000,	true },
 #endif
 	{ NULL,		NULL,		0,		0},
 };
@@ -299,7 +305,8 @@ void tegra_init_cache(bool init)
 	} else {
 		/* relax l2-cache latency for speedos 4,5,6 (T33's chips) */
 		speedo = tegra_cpu_speedo_id();
-		if (speedo == 4 || speedo == 5 || speedo == 6) {
+		if (speedo == 4 || speedo == 5 || speedo == 6 ||
+		    speedo == 12 || speedo == 13) {
 			writel(0x442, p + L2X0_TAG_LATENCY_CTRL);
 			writel(0x552, p + L2X0_DATA_LATENCY_CTRL);
 		} else {
@@ -552,6 +559,20 @@ static int __init tegra_max_cpu_current(char *options)
 }
 __setup("max_cpu_cur_ma=", tegra_max_cpu_current);
 
+#ifdef CONFIG_ACER_RAM_LOG
+static int __init tegra_acer_ramlog(char *info)
+{
+	char *p = info;
+	if (*p == '1')
+		is_tegra_acer_ramlog_enabled = true;
+	else
+		is_tegra_acer_ramlog_enabled = false;
+	return 0;
+}
+
+early_param("acer_ramlog", tegra_acer_ramlog);
+#endif
+
 static int __init tegra_debug_uartport(char *info)
 {
 	char *p = info;
@@ -691,33 +712,40 @@ int acer_wifi_module;
 static int __init hw_ver_arg(char *options)
 {
 	int hw_ver = 0;
-	int pcb_id[4];
+	int sku_type = 0;
+	int sku_lte  = 0;
 	acer_board_type = 0;
 	acer_board_id = 0;
 	acer_sku = 0;
 	acer_wifi_module = 0;
 
 	hw_ver = simple_strtoul(options, &options, 16);
+	/*
+	 *   4bits      1byte      4bits     1bit   1bit   1bit  1bit
+	 * | sku # | board type | board id | empty | LTE | wifi | 3G |
+	 */
 
-	pcb_id[0] = hw_ver & 1;
-	pcb_id[1] = (hw_ver >> 1) & 1;
-	pcb_id[2] = (hw_ver >> 2) & 1;
-	pcb_id[3] = (hw_ver >> 3) & 1;
-	acer_board_id = hw_ver >> 4;
+	/* acer_board_type  = (hw_ver & 0xf00) >> 8;
+	acer_board_id    = (hw_ver & 0xf0) >> 4;
+	sku_type         = (hw_ver & 0x1);
+	acer_wifi_module = (hw_ver & 0x2) >> 1;
+	sku_lte          = (hw_ver & 0x4) >> 2; */
 
-	if (pcb_id[3] == BOARD_PICASSO_2)
-		acer_board_type = BOARD_PICASSO_2;
-	else if (pcb_id[3] == BOARD_PICASSO_M)
-		acer_board_type = BOARD_PICASSO_M;
+	/* dirty hack to force Picasso M board */
+	acer_board_type  = BOARD_PICASSO_M;
+	acer_board_id    = (hw_ver & 0xf0) >> 4;
+	sku_type         = (hw_ver & 0x1);
+	acer_wifi_module = (hw_ver & 0x2) >> 1;
+	sku_lte          = (hw_ver & 0x4) >> 2;
 
-	if (pcb_id[0] && pcb_id[2])
+	if (sku_type && sku_lte)
 		acer_sku = BOARD_SKU_LTE;
-	else if (pcb_id[0] && !pcb_id[2])
+	else if (sku_type && !sku_lte)
 		acer_sku = BOARD_SKU_3G;
 	else
 		acer_sku = BOARD_SKU_WIFI;
 
-	if (pcb_id[1] == BOARD_WIFI_AH663)
+	if (acer_wifi_module == BOARD_WIFI_AH663)
 		acer_wifi_module = BOARD_WIFI_AH663;
 	else
 		acer_wifi_module = BOARD_WIFI_NH660;
@@ -949,6 +977,103 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 #endif
 }
 
+static struct resource ram_console_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device ram_console_device = {
+	.name 		= "ram_console",
+	.id 		= -1,
+	.num_resources	= ARRAY_SIZE(ram_console_resources),
+	.resource	= ram_console_resources,
+};
+
+void __init tegra_ram_console_debug_reserve(unsigned long ram_console_size)
+{
+	struct resource *res;
+	long ret;
+
+	res = platform_get_resource(&ram_console_device, IORESOURCE_MEM, 0);
+	if (!res)
+		goto fail;
+	res->start = memblock_end_of_DRAM() - ram_console_size;
+	res->end = res->start + ram_console_size - 1;
+	ret = memblock_remove(res->start, ram_console_size);
+	if (ret)
+		goto fail;
+
+	return;
+
+fail:
+	ram_console_device.resource = NULL;
+	ram_console_device.num_resources = 0;
+	pr_err("Failed to reserve memory block for ram console\n");
+}
+
+void __init tegra_ram_console_debug_init(void)
+{
+	int err;
+
+	err = platform_device_register(&ram_console_device);
+	if (err) {
+		pr_err("%s: ram console registration failed (%d)!\n", __func__, err);
+	}
+}
+
+#ifdef CONFIG_ACER_RAM_LOG
+static struct resource ramlog_resources[] = {
+	{
+		.flags = IORESOURCE_MEM,
+		.start = 0,
+		.end = 0,
+	},
+};
+
+static struct platform_device ramlog_device = {
+	.name           = "acer_ramlog",
+	.id             = -1,
+	.num_resources  = ARRAY_SIZE(ramlog_resources),
+	.resource       = ramlog_resources,
+};
+
+void __init acer_ramlog_debug_reserve(unsigned long ramlog_size)
+{
+	struct resource *res;
+	long ret;
+
+	if (!is_tegra_acer_ramlog_enabled)
+		return;
+
+	res = platform_get_resource(&ramlog_device, IORESOURCE_MEM, 0);
+	if (!res)
+		goto fail;
+	res->start = memblock_end_of_DRAM() - ramlog_size;
+	res->end = res->start + ramlog_size - 1;
+	ret = memblock_remove(res->start, ramlog_size);
+	if (ret)
+		goto fail;
+
+	return;
+
+fail:
+	ramlog_device.resource = NULL;
+	ramlog_device.num_resources = 0;
+	pr_err("Failed to reserve memory block for ramlog\n");
+}
+
+void __init acer_ramlog_debug_init(void)
+{
+	int err;
+
+	err = platform_device_register(&ramlog_device);
+	if (err) {
+		pr_err("%s: ramlog registration failed (%d)!\n", __func__, err);
+	}
+}
+#endif
+
 void __init tegra_release_bootloader_fb(void)
 {
 	/* Since bootloader fb is reserved in common.c, it is freed here. */
@@ -969,7 +1094,7 @@ static void cpufreq_set_governor(char *governor)
 	struct file *scaling_gov = NULL;
 	mm_segment_t old_fs;
 	char    buf[128];
-	int i = 0;
+	int i;
 	loff_t offset = 0;
 
 	if (governor == NULL)
@@ -984,9 +1109,7 @@ static void cpufreq_set_governor(char *governor)
 	{
 		sprintf(buf, cpufreq_sysfs_place_holder, i);
 		scaling_gov = filp_open(buf, O_RDWR, 0);
-		if (IS_ERR_OR_NULL(scaling_gov)) {
-			pr_err("%s. Can't open %s\n", __func__, buf);
-		} else {
+		if (scaling_gov != NULL) {
 			if (scaling_gov->f_op != NULL &&
 				scaling_gov->f_op->write != NULL)
 				scaling_gov->f_op->write(scaling_gov,
@@ -997,6 +1120,8 @@ static void cpufreq_set_governor(char *governor)
 				pr_err("f_op might be null\n");
 
 			filp_close(scaling_gov, NULL);
+		} else {
+			pr_err("%s. Can't open %s\n", __func__, buf);
 		}
 	}
 	set_fs(old_fs);
@@ -1016,9 +1141,7 @@ void cpufreq_save_default_governor(void)
 	buf[127] = 0;
 	sprintf(buf, cpufreq_sysfs_place_holder,0);
 	scaling_gov = filp_open(buf, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(scaling_gov)) {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	} else {
+	if (scaling_gov != NULL) {
 		if (scaling_gov->f_op != NULL &&
 			scaling_gov->f_op->read != NULL)
 			scaling_gov->f_op->read(scaling_gov,
@@ -1029,6 +1152,8 @@ void cpufreq_save_default_governor(void)
 			pr_err("f_op might be null\n");
 
 		filp_close(scaling_gov, NULL);
+	} else {
+		pr_err("%s. Can't open %s\n", __func__, buf);
 	}
 	set_fs(old_fs);
 }
@@ -1038,57 +1163,33 @@ void cpufreq_restore_default_governor(void)
 	cpufreq_set_governor(cpufreq_gov_default);
 }
 
-void cpufreq_set_conservative_governor_param(int up_th, int down_th)
+void cpufreq_set_conservative_governor_param(char *name, int value)
 {
 	struct file *gov_param = NULL;
-	static char buf[128],parm[8];
-	loff_t offset = 0;
 	mm_segment_t old_fs;
-
-	if (up_th <= down_th) {
-		printk(KERN_ERR "%s: up_th(%d) is lesser than down_th(%d)\n",
-			__func__, up_th, down_th);
-		return;
-	}
+	static char buf[128], param_value[8];
+	loff_t offset = 0;
 
 	/* change to KERNEL_DS address limit */
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	sprintf(parm, "%d", up_th);
-	sprintf(buf, cpufreq_gov_conservative_param ,"up_threshold");
-	gov_param = filp_open(buf, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(gov_param)) {
-		pr_err("%s. Can't open %s\n", __func__, buf);
-	} else {
+	sprintf(param_value, "%d", value);
+	sprintf(buf, cpufreq_gov_conservative_param, name);
+	gov_param = filp_open(buf, O_RDWR, 0);
+	if (gov_param != NULL) {
 		if (gov_param->f_op != NULL &&
 			gov_param->f_op->write != NULL)
 			gov_param->f_op->write(gov_param,
-					parm,
-					strlen(parm),
+					param_value,
+					strlen(param_value),
 					&offset);
 		else
 			pr_err("f_op might be null\n");
 
 		filp_close(gov_param, NULL);
-	}
-
-	sprintf(parm, "%d", down_th);
-	sprintf(buf, cpufreq_gov_conservative_param ,"down_threshold");
-	gov_param = filp_open(buf, O_RDONLY, 0);
-	if (IS_ERR_OR_NULL(gov_param)) {
-		pr_err("%s. Can't open %s\n", __func__, buf);
 	} else {
-		if (gov_param->f_op != NULL &&
-			gov_param->f_op->write != NULL)
-			gov_param->f_op->write(gov_param,
-					parm,
-					strlen(parm),
-					&offset);
-		else
-			pr_err("f_op might be null\n");
-
-		filp_close(gov_param, NULL);
+		pr_err("%s. Can't open %s\n", __func__, buf);
 	}
 	set_fs(old_fs);
 }

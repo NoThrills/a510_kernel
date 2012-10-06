@@ -41,6 +41,7 @@
 #include <linux/vmalloc.h>
 #include <linux/memblock.h>
 #include <linux/console.h>
+#include <linux/pm_qos_params.h>
 
 #include <asm/cacheflush.h>
 #include <asm/cpu_pm.h>
@@ -67,7 +68,7 @@
 #include "sleep.h"
 #include "timer.h"
 #include "dvfs.h"
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 #include <linux/gpio.h>
 #include "gpio-names.h"
 
@@ -75,6 +76,9 @@
 int p2_wakeup = 1;
 #endif
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+extern int acer_gpio_sleep_table_store(void);
+#endif
 
 
 struct suspend_context {
@@ -165,12 +169,10 @@ struct suspend_context tegra_sctx;
 #define CLK_RESET_SOURCE_CSITE	0x1d4
 
 #define CLK_RESET_CCLK_BURST_POLICY_SHIFT 28
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 #define CLK_RESET_CCLK_RUN_POLICY_SHIFT    4
 #define CLK_RESET_CCLK_IDLE_POLICY_SHIFT   0
 #define CLK_RESET_CCLK_IDLE_POLICY	   1
 #define CLK_RESET_CCLK_RUN_POLICY	   2
-#endif
 #define CLK_RESET_CCLK_BURST_POLICY_PLLM   3
 #define CLK_RESET_CCLK_BURST_POLICY_PLLX   8
 
@@ -182,6 +184,8 @@ struct suspend_context tegra_sctx;
 #define MC_SECURITY_SIZE	0x70
 #define MC_SECURITY_CFG2	0x7c
 
+#define AWAKE_CPU_FREQ_MIN	100000
+static struct pm_qos_request_list awake_cpu_freq_req;
 #if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 extern int clk_set_parent2(struct clk *c, struct clk *parent);
 #endif
@@ -194,16 +198,9 @@ static struct clk *cpu_clk;
 #endif
 static const struct tegra_suspend_platform_data *pdata;
 static enum tegra_suspend_mode current_suspend_mode = TEGRA_SUSPEND_NONE;
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 void gpio_sleep_init(void);
 #endif
-
-static const char *tegra_suspend_name[TEGRA_MAX_SUSPEND_MODE] = {
-	[TEGRA_SUSPEND_NONE]	= "none",
-	[TEGRA_SUSPEND_LP2]	= "lp2",
-	[TEGRA_SUSPEND_LP1]	= "lp1",
-	[TEGRA_SUSPEND_LP0]	= "lp0",
-};
 
 #if defined(CONFIG_TEGRA_CLUSTER_CONTROL) && INSTRUMENT_CLUSTER_SWITCH
 enum tegra_cluster_switch_time_id {
@@ -234,6 +231,13 @@ static unsigned long
 #endif
 
 #ifdef CONFIG_PM_SLEEP
+static const char *tegra_suspend_name[TEGRA_MAX_SUSPEND_MODE] = {
+	[TEGRA_SUSPEND_NONE]	= "none",
+	[TEGRA_SUSPEND_LP2]	= "lp2",
+	[TEGRA_SUSPEND_LP1]	= "lp1",
+	[TEGRA_SUSPEND_LP0]	= "lp0",
+};
+
 unsigned long tegra_cpu_power_good_time(void)
 {
 	if (WARN_ON_ONCE(!pdata))
@@ -382,19 +386,13 @@ static void set_power_timers(unsigned long us_on, unsigned long us_off,
 static void restore_cpu_complex(u32 mode)
 {
 	int cpu = smp_processor_id();
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 	unsigned int reg, policy;
-#else
-	unsigned int reg;
-#endif
 
 	BUG_ON(cpu != 0);
 	BUG_ON(tegra_sctx.pllp_base != readl(clk_rst + CLK_RESET_PLLP_BASE));
 
 	/* restore original PLL settings */
-#if !defined(CONFIG_ARCH_ACER_T20) && !defined(CONFIG_ARCH_ACER_T30)
-	writel(tegra_sctx.pllx_misc, clk_rst + CLK_RESET_PLLX_MISC);
-	writel(tegra_sctx.pllx_base, clk_rst + CLK_RESET_PLLX_BASE);
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	writel(tegra_sctx.pllp_misc, clk_rst + CLK_RESET_PLLP_MISC);
 	writel(tegra_sctx.pllp_base, clk_rst + CLK_RESET_PLLP_BASE);
 #endif
@@ -403,13 +401,6 @@ static void restore_cpu_complex(u32 mode)
 
 	/* Is CPU complex already running on PLLX? */
 	reg = readl(clk_rst + CLK_RESET_CCLK_BURST);
-#if !defined(CONFIG_ARCH_ACER_T20) && !defined(CONFIG_ARCH_ACER_T30)
-	reg &= 0xF;
-	if (reg != 0x8) {
-		/* restore original burst policy setting; PLLX state restored
-		 * by CPU boot-up code - wait for PLL stabilization if PLLX
-		 * was enabled */
-#else
 	policy = (reg >> CLK_RESET_CCLK_BURST_POLICY_SHIFT) & 0xF;
 
 	if (policy == CLK_RESET_CCLK_IDLE_POLICY)
@@ -425,13 +416,6 @@ static void restore_cpu_complex(u32 mode)
 		writel(tegra_sctx.pllx_base, clk_rst + CLK_RESET_PLLX_BASE);
 
 		/* wait for PLL stabilization if PLLX was enabled */
-#endif
-		reg = readl(clk_rst + CLK_RESET_PLLX_BASE);
-
-		/* mask out bit 27 - not to check PLL lock bit */
-		BUG_ON((reg & (~(1 << 27))) !=
-				(tegra_sctx.pllx_base & (~(1 << 27))));
-
 		if (tegra_sctx.pllx_base & (1<<30)) {
 #if USE_PLL_LOCK_BITS
 			/* Enable lock detector */
@@ -441,12 +425,18 @@ static void restore_cpu_complex(u32 mode)
 			while (!(readl(clk_rst + CLK_RESET_PLLX_BASE) &
 				 (1<<27)))
 				cpu_relax();
+
+			udelay(PLL_POST_LOCK_DELAY);
 #else
 			udelay(300);
 #endif
 		}
+	}
 
-		/* restore original burst policy setting */
+	/* Restore original burst policy setting for calls resulting from CPU
+	   LP2 in idle or system suspend; keep cluster switch prolog setting
+	   intact. */
+	if (!(mode & TEGRA_POWER_CLUSTER_MASK)) {
 		writel(tegra_sctx.cclk_divider, clk_rst +
 		       CLK_RESET_CCLK_DIVIDER);
 		writel(tegra_sctx.cpu_burst, clk_rst +
@@ -458,17 +448,6 @@ static void restore_cpu_complex(u32 mode)
 #if defined(CONFIG_ARCH_ACER_T20)
 	if (mode == 0) {
 		if (!clk_set_parent2(cpu_clk->parent, cpu_clk->u.cpu.main)) {
-			writel(tegra_sctx.pllp_misc, clk_rst + CLK_RESET_PLLP_MISC);
-			writel(tegra_sctx.pllp_base, clk_rst + CLK_RESET_PLLP_BASE);
-		}
-		else {
-			pr_err("[PM] Switch cpu parent to pllx failed.\r\n");
-		}
-	}
-#endif
-#if defined(CONFIG_ARCH_ACER_T30)
-	if (mode == 0) {
-		if (cpu_clk->parent && !clk_set_parent2(cpu_clk->parent->parent, cpu_clk->parent->u.cpu.main)) {
 			writel(tegra_sctx.pllp_misc, clk_rst + CLK_RESET_PLLP_MISC);
 			writel(tegra_sctx.pllp_base, clk_rst + CLK_RESET_PLLP_BASE);
 		}
@@ -594,7 +573,7 @@ bool tegra_set_cpu_in_lp2(int cpu)
 	if ((cpu == 0) && cpumask_equal(&tegra_in_lp2, cpu_online_mask))
 		last_cpu = true;
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
-	else
+	else if (cpu == 1)
 		tegra2_cpu_set_resettable_soon();
 #endif
 
@@ -777,6 +756,7 @@ static void tegra_pm_set(enum tegra_suspend_mode mode)
 
 	switch (mode) {
 	case TEGRA_SUSPEND_LP0:
+		rate = clk_get_rate_all_locked(tegra_pclk);
 		if (pdata->combined_req) {
 			reg |= TEGRA_POWER_PWRREQ_OE;
 			reg &= ~TEGRA_POWER_CPU_PWRREQ_OE;
@@ -831,7 +811,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 	int ret;
 	ktime_t delta;
 	struct timespec ts_entry, ts_exit;
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 	bool do_lp0 = (current_suspend_mode == TEGRA_SUSPEND_LP0);
 	bool do_lp2 = (current_suspend_mode == TEGRA_SUSPEND_LP2);
 #endif
@@ -840,12 +820,16 @@ static int tegra_suspend_enter(suspend_state_t state)
 		pdata->board_suspend(current_suspend_mode, TEGRA_SUSPEND_BEFORE_PERIPHERAL);
 
 	read_persistent_clock(&ts_entry);
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 	if (do_lp0)
 		gpio_sleep_init();
 #endif
 
 	ret = tegra_suspend_dram(current_suspend_mode, 0);
+	if (ret) {
+		pr_info("Aborting suspend, tegra_suspend_dram error=%d\n", ret);
+		goto abort_suspend;
+	}
 
 	read_persistent_clock(&ts_exit);
 
@@ -859,6 +843,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 			tegra_dvfs_rail_pause(tegra_core_rail, delta, true);
 	}
 
+abort_suspend:
 	if (pdata && pdata->board_resume)
 		pdata->board_resume(current_suspend_mode, TEGRA_RESUME_AFTER_PERIPHERAL);
 
@@ -893,7 +878,13 @@ static void tegra_suspend_check_pwr_stats(void)
 
 int tegra_suspend_dram(enum tegra_suspend_mode mode, unsigned int flags)
 {
-	BUG_ON(mode < 0 || mode >= TEGRA_MAX_SUSPEND_MODE);
+	int err = 0;
+
+	if (WARN_ON(mode <= TEGRA_SUSPEND_NONE ||
+		mode >= TEGRA_MAX_SUSPEND_MODE)) {
+		err = -ENXIO;
+		goto fail;
+	}
 
 	if ((mode == TEGRA_SUSPEND_LP0) && !tegra_pm_irq_lp0_allowed()) {
 		pr_info("LP0 not used due to unsupported wakeup events\n");
@@ -912,6 +903,9 @@ int tegra_suspend_dram(enum tegra_suspend_mode mode, unsigned int flags)
 
 	local_fiq_disable();
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	acer_gpio_sleep_table_store();
+#endif
 	cpu_pm_enter();
 	cpu_complex_pm_enter();
 
@@ -975,7 +969,8 @@ int tegra_suspend_dram(enum tegra_suspend_mode mode, unsigned int flags)
 
 	tegra_common_resume();
 
-	return 0;
+fail:
+	return err;
 }
 
 /*
@@ -1033,6 +1028,11 @@ static ssize_t suspend_mode_store(struct kobject *kobj,
 	len = name_ptr - buf;
 	if (!len)
 		goto bad_name;
+	/* TEGRA_SUSPEND_NONE not allowed as suspend state */
+	if (!(strncmp(buf, tegra_suspend_name[TEGRA_SUSPEND_NONE], len))) {
+		pr_info("Illegal tegra suspend state: %s\n", buf);
+		goto bad_name;
+	}
 
 	for (new_mode = TEGRA_SUSPEND_NONE; \
 			new_mode < TEGRA_MAX_SUSPEND_MODE; ++new_mode) {
@@ -1050,9 +1050,7 @@ static struct kobj_attribute suspend_mode_attribute =
 	__ATTR(mode, 0644, suspend_mode_show, suspend_mode_store);
 
 static struct kobject *suspend_kobj;
-#endif
 
-#ifdef CONFIG_PM_SLEEP
 static int tegra_pm_enter_suspend(void)
 {
 	pr_info("Entering suspend state %s\n", lp_state[current_suspend_mode]);
@@ -1063,7 +1061,7 @@ static int tegra_pm_enter_suspend(void)
 
 static void tegra_pm_enter_resume(void)
 {
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 	p2_wakeup = gpio_get_value(POWER_KEY_GPIO);
 #endif
 	if (current_suspend_mode == TEGRA_SUSPEND_LP0)
@@ -1091,6 +1089,9 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 
 	tegra_cpu_rail = tegra_dvfs_get_rail_by_name("vdd_cpu");
 	tegra_core_rail = tegra_dvfs_get_rail_by_name("vdd_core");
+	pm_qos_add_request(&awake_cpu_freq_req, PM_QOS_CPU_FREQ_MIN,
+			   AWAKE_CPU_FREQ_MIN);
+
 	tegra_pclk = clk_get_sys(NULL, "pclk");
 	BUG_ON(IS_ERR(tegra_pclk));
 #if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
@@ -1332,67 +1333,3 @@ static int tegra_debug_uart_syscore_init(void)
 	return 0;
 }
 arch_initcall(tegra_debug_uart_syscore_init);
-
-#ifdef CONFIG_DEBUG_FS
-static int tegra_suspend_debug_show(struct seq_file *s, void *data)
-{
-	seq_printf(s, "%s\n", tegra_suspend_name[*(int *)s->private]);
-	return 0;
-}
-
-static int tegra_suspend_debug_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, tegra_suspend_debug_show, inode->i_private);
-}
-
-static int tegra_suspend_debug_write(struct file *file,
-	const char __user *user_buf, size_t count, loff_t *ppos)
-{
-	char buf[32];
-	int buf_size;
-	int i;
-	struct seq_file *s = file->private_data;
-	enum tegra_suspend_mode *val = s->private;
-
-	memset(buf, 0x00, sizeof(buf));
-	buf_size = min(count, (sizeof(buf)-1));
-	if (copy_from_user(buf, user_buf, buf_size))
-		return -EFAULT;
-
-	for (i = 0; i < TEGRA_MAX_SUSPEND_MODE; i++) {
-		if (!strnicmp(buf, tegra_suspend_name[i],
-		    strlen(tegra_suspend_name[i]))) {
-			if (i > pdata->suspend_mode)
-				return -EINVAL;
-			*val = i;
-			return count;
-		}
-	}
-
-	return -EINVAL;
-}
-
-static const struct file_operations tegra_suspend_debug_fops = {
-	.open		= tegra_suspend_debug_open,
-	.write		= tegra_suspend_debug_write,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-};
-
-static int __init tegra_suspend_debug_init(void)
-{
-	struct dentry *d;
-
-	d = debugfs_create_file("suspend_mode", 0755, NULL,
-		(void *)&current_suspend_mode, &tegra_suspend_debug_fops);
-	if (!d) {
-		pr_info("Failed to create suspend_mode debug file\n");
-		return -ENOMEM;
-	}
-
-	return 0;
-}
-
-late_initcall(tegra_suspend_debug_init);
-#endif

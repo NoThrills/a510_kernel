@@ -1376,11 +1376,7 @@ int regulator_enable(struct regulator *regulator)
 	ret = _regulator_enable(rdev);
 	mutex_unlock(&rdev->mutex);
 
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 	if (ret != 0 && rdev->supply)
-#else
-	if (ret != 0)
-#endif
 		regulator_disable(rdev->supply);
 
 	return ret;
@@ -2610,6 +2606,14 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 		ret = set_supply(rdev, r);
 		if (ret < 0)
 			goto scrub;
+
+		/* Enable supply if rail is enabled */
+		if (rdev->desc->ops->is_enabled &&
+				rdev->desc->ops->is_enabled(rdev)) {
+			ret = regulator_enable(rdev->supply);
+			if (ret < 0)
+				goto scrub;
+		}
 	}
 
 	if (init_data->supply_regulator_dev) {

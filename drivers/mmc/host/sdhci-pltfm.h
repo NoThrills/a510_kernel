@@ -20,11 +20,6 @@ struct sdhci_pltfm_host {
 	void *priv; /* to handle quirks across io-accessor calls */
 };
 
-extern struct sdhci_pltfm_data sdhci_cns3xxx_pdata;
-extern struct sdhci_pltfm_data sdhci_esdhc_imx_pdata;
-extern struct sdhci_pltfm_data sdhci_dove_pdata;
-extern struct sdhci_pltfm_data sdhci_tegra_pdata;
-
 struct tegra_sdhci_host {
 	bool	clk_enabled;
 	struct regulator *vdd_io_reg;
@@ -39,6 +34,14 @@ struct tegra_sdhci_host {
 	unsigned int vddio_max_uv;
 	/* max clk supported by the platform */
 	unsigned int max_clk_limit;
+	struct tegra_io_dpd *dpd;
+	bool card_present;
+	bool is_rail_enabled;
 };
+
+extern struct sdhci_pltfm_data sdhci_cns3xxx_pdata;
+extern struct sdhci_pltfm_data sdhci_esdhc_imx_pdata;
+extern struct sdhci_pltfm_data sdhci_dove_pdata;
+extern struct sdhci_pltfm_data sdhci_tegra_pdata;
 
 #endif /* _DRIVERS_MMC_SDHCI_PLTFM_H */

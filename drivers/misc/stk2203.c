@@ -83,15 +83,13 @@ inline int32_t get_reading(void)
 inline int32_t alscode2lux(int32_t alscode)
 {
 #ifdef CONFIG_MACH_PICASSO_M
-	if (acer_board_id == BOARD_PVT) {
+	if (acer_board_id == BOARD_PVT1) {
 		if ((buff[1]-48) == 1) {
-			if ((buff[6]-48) >= 1) {
-				alscode<<=10;
-			}
-			else if ((buff[7]-48) <= 5) {
+			if ((buff[6]-48) >= 2 && (buff[7]-48) >= 4) {
+				alscode<<=11;
+			} else if ((buff[6]-48) == 0 && (buff[7]-48) <= 5) {
 				alscode<<=9;
-			}
-			else {
+			} else {
 				alscode<<=10;
 			}
 		} else {
@@ -99,6 +97,14 @@ inline int32_t alscode2lux(int32_t alscode)
 		}
 	} else {
 		alscode<<=9;
+	}
+#elif defined(CONFIG_MACH_PICASSO_MF)
+	if ((buff[1]-48) == 1 && (buff[6]-48) >= 2 && (buff[7]-48) >= 4) {
+		alscode<<=11;
+	} else if ((buff[1]-48) == 1 && (buff[6]-48) == 0 && (buff[7]-48) <= 5) {
+		alscode<<=9;
+	} else {
+		alscode<<=10;
 	}
 #else
 	alscode<<=10;
@@ -169,23 +175,28 @@ static int32_t init_all_setting()
 
 	enable_als(0);
 #ifdef CONFIG_MACH_PICASSO_M
-	if (acer_board_id == BOARD_PVT) {
+	if (acer_board_id == BOARD_PVT1) {
 		if ((buff[1]-48) == 1) {
-			if ((buff[6]-48) >= 1) {
-				set_gain(1);
-			}
-			else if ((buff[7]-48) <= 5) {
+			if ((buff[6]-48) >= 2 && (buff[7]-48) >= 4) {
+				set_gain(0);
+			} else if ((buff[6]-48) == 0 && (buff[7]-48) <= 5) {
 				set_gain(2);
-			}
-			else {
+			} else {
 				set_gain(1);
 			}
 		} else {
 			set_gain(1);
 		}
-	}
-	else {
+	} else {
 		set_gain(2);
+	}
+#elif defined(CONFIG_MACH_PICASSO_MF)
+	if ((buff[1]-48) == 1 && (buff[6]-48) >= 2 && (buff[7]-48) >= 4) {
+		set_gain(0);
+	} else if ((buff[1]-48) == 1 && (buff[6]-48) == 0 && (buff[7]-48) <= 5) {
+		set_gain(2);
+	} else {
+		set_gain(1);
 	}
 #else
 	set_gain(1);
@@ -443,18 +454,6 @@ static int stk_als_probe(struct i2c_client *client,
 		return err;
 	}
 
-
-	err = request_irq(client->irq, stk_oss_irq_handler, STK_IRQF_MODE, DEVICE_NAME, als_data);
-	if (err < 0) {
-		ERR("%s: request_irq(%d) failed for (%d)\n",
-			__func__, client->irq, err);
-		gpio_free(158);
-		mutex_destroy(&stkals_io_lock);
-		kfree(als_data);
-		pStkAlsData = NULL;
-		return err;
-	}
-
 	memset(buff,'\0',sizeof(buff));
 	result = Get_Light_Sensor(buff);
 	if (result != 0)
@@ -486,6 +485,18 @@ static int stk_als_probe(struct i2c_client *client,
 		pStkAlsData = NULL;
 		return err;
 	}
+
+	err = request_irq(client->irq, stk_oss_irq_handler, STK_IRQF_MODE, DEVICE_NAME, als_data);
+	if (err < 0) {
+		ERR("%s: request_irq(%d) failed for (%d)\n",
+			__func__, client->irq, err);
+		gpio_free(158);
+		mutex_destroy(&stkals_io_lock);
+		kfree(als_data);
+		pStkAlsData = NULL;
+		return err;
+	}
+
 	INFO("STK ALS : register als input device OK\n");
 
 	return 0;

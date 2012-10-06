@@ -37,7 +37,15 @@
 #define CARDHU_WLAN_RST        TEGRA_GPIO_PP2
 #define CARDHU_WLAN_WOW        TEGRA_GPIO_PS2
 #define CARDHU_BT_RST        TEGRA_GPIO_PU0
+#if defined(CONFIG_MACH_PICASSO_E2)
+#define CARDHU_SD_CD TEGRA_GPIO_PI5
+#define CARDHU_SD_SLT TEGRA_GPIO_PD2
+#define CARDHU_EMMC_POWER TEGRA_GPIO_PD1
+#else
 #define CARDHU_SD_CD TEGRA_GPIO_PS4
+#define CARDHU_SD_SLT -1
+#define CARDHU_EMMC_POWER -1
+#endif
 #define PM269_SD_WP -1
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
@@ -149,8 +157,7 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data2 = {
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data0 = {
 	.cd_gpio = CARDHU_SD_CD,
 	.wp_gpio = -1,
-	.power_gpio = -1,
-	.cd_gpio_polarity = 0,
+	.power_gpio = CARDHU_SD_SLT,
 	.tap_delay = 6,
 	.is_voltage_switch_supported = true,
 	.vdd_rail_name = "vddio_sdmmc1",
@@ -164,7 +171,7 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data0 = {
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data3 = {
 	.cd_gpio = -1,
 	.wp_gpio = -1,
-	.power_gpio = -1,
+	.power_gpio = CARDHU_EMMC_POWER,
 	.is_8bit = 1,
 	.mmc_data = {
 		.built_in = 1,

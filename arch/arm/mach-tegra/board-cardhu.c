@@ -1,7 +1,7 @@
 /*
  * arch/arm/mach-tegra/board-cardhu.c
  *
- * Copyright (c) 2011, NVIDIA Corporation.
+ * Copyright (c) 2011-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@
 #include <linux/nfc/pn544.h>
 
 #include <sound/wm8903.h>
+#include <sound/max98095.h>
+#include <media/tegra_dtv.h>
 
 #include <mach/clk.h>
 #include <mach/iomap.h>
@@ -49,7 +51,9 @@
 #include <mach/iomap.h>
 #include <mach/io.h>
 #include <mach/i2s.h>
+#include <mach/tegra_asoc_pdata.h>
 #include <mach/tegra_wm8903_pdata.h>
+#include <mach/tegra_rt5640_pdata.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/usb_phy.h>
@@ -183,10 +187,10 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "i2s1",	"pll_a_out0",	0,		false},
 	{ "i2s3",	"pll_a_out0",	0,		false},
 	{ "spdif_out",	"pll_a_out0",	0,		false},
-	{ "d_audio",	"pll_a_out0",	0,		false},
-	{ "dam0",	"pll_a_out0",	0,		false},
-	{ "dam1",	"pll_a_out0",	0,		false},
-	{ "dam2",	"pll_a_out0",	0,		false},
+	{ "d_audio",	"clk_m",	12000000,	false},
+	{ "dam0",	"clk_m",	12000000,	false},
+	{ "dam1",	"clk_m",	12000000,	false},
+	{ "dam2",	"clk_m",	12000000,	false},
 	{ "audio1",	"i2s1_sync",	0,		false},
 	{ "audio3",	"i2s3_sync",	0,		false},
 	{ "vi_sensor",	"pll_p",	150000000,	false},
@@ -281,14 +285,126 @@ static struct wm8903_platform_data cardhu_wm8903_pdata = {
 	},
 };
 
-static struct i2c_board_info __initdata wm8903_board_info = {
-	I2C_BOARD_INFO("wm8903", 0x1a),
-	.platform_data = &cardhu_wm8903_pdata,
-	.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CDC_IRQ),
+/* Equalizer filter coefs generated from the MAXIM MAX98095
+ * evkit software tool */
+static struct max98095_eq_cfg max98095_eq_cfg[] = {
+	{
+		.name = "FLAT",
+		.rate = 44100,
+		.band1 = {0x2000, 0xC002, 0x4000, 0x00E9, 0x0000},
+		.band2 = {0x2000, 0xC00F, 0x4000, 0x02BC, 0x0000},
+		.band3 = {0x2000, 0xC0A7, 0x4000, 0x0916, 0x0000},
+		.band4 = {0x2000, 0xC5C2, 0x4000, 0x1A87, 0x0000},
+		.band5 = {0x2000, 0xF6B0, 0x4000, 0x3F51, 0x0000},
+	},
+	{
+		.name = "LOWPASS1K",
+		.rate = 44100,
+		.band1 = {0x205D, 0xC001, 0x3FEF, 0x002E, 0x02E0},
+		.band2 = {0x5B9A, 0xC093, 0x3AB2, 0x088B, 0x1981},
+		.band3 = {0x0D22, 0xC170, 0x26EA, 0x0D79, 0x32CF},
+		.band4 = {0x0894, 0xC612, 0x01B3, 0x1B34, 0x3FFA},
+		.band5 = {0x0815, 0x3FFF, 0xCF78, 0x0000, 0x29B7},
+	},
+	{ /* BASS=-12dB, TREBLE=+9dB, Fc=5KHz */
+		.name = "HIBOOST",
+		.rate = 44100,
+		.band1 = {0x0815, 0xC001, 0x3AA4, 0x0003, 0x19A2},
+		.band2 = {0x0815, 0xC103, 0x092F, 0x0B55, 0x3F56},
+		.band3 = {0x0E0A, 0xC306, 0x1E5C, 0x136E, 0x3856},
+		.band4 = {0x2459, 0xF665, 0x0CAA, 0x3F46, 0x3EBB},
+		.band5 = {0x5BBB, 0x3FFF, 0xCEB0, 0x0000, 0x28CA},
+	},
+	{ /* BASS=12dB, TREBLE=+12dB */
+		.name = "LOUD12DB",
+		.rate = 44100,
+		.band1 = {0x7FC1, 0xC001, 0x3EE8, 0x0020, 0x0BC7},
+		.band2 = {0x51E9, 0xC016, 0x3C7C, 0x033F, 0x14E9},
+		.band3 = {0x1745, 0xC12C, 0x1680, 0x0C2F, 0x3BE9},
+		.band4 = {0x4536, 0xD7E2, 0x0ED4, 0x31DD, 0x3E42},
+		.band5 = {0x7FEF, 0x3FFF, 0x0BAB, 0x0000, 0x3EED},
+	},
+	{
+		.name = "FLAT",
+		.rate = 16000,
+		.band1 = {0x2000, 0xC004, 0x4000, 0x0141, 0x0000},
+		.band2 = {0x2000, 0xC033, 0x4000, 0x0505, 0x0000},
+		.band3 = {0x2000, 0xC268, 0x4000, 0x115F, 0x0000},
+		.band4 = {0x2000, 0xDA62, 0x4000, 0x33C6, 0x0000},
+		.band5 = {0x2000, 0x4000, 0x4000, 0x0000, 0x0000},
+	},
+	{
+		.name = "LOWPASS1K",
+		.rate = 16000,
+		.band1 = {0x2000, 0xC004, 0x4000, 0x0141, 0x0000},
+		.band2 = {0x5BE8, 0xC3E0, 0x3307, 0x15ED, 0x26A0},
+		.band3 = {0x0F71, 0xD15A, 0x08B3, 0x2BD0, 0x3F67},
+		.band4 = {0x0815, 0x3FFF, 0xCF78, 0x0000, 0x29B7},
+		.band5 = {0x0815, 0x3FFF, 0xCF78, 0x0000, 0x29B7},
+	},
+	{ /* BASS=-12dB, TREBLE=+9dB, Fc=2KHz */
+		.name = "HIBOOST",
+		.rate = 16000,
+		.band1 = {0x0815, 0xC001, 0x3BD2, 0x0009, 0x16BF},
+		.band2 = {0x080E, 0xC17E, 0xF653, 0x0DBD, 0x3F43},
+		.band3 = {0x0F80, 0xDF45, 0xEE33, 0x36FE, 0x3D79},
+		.band4 = {0x590B, 0x3FF0, 0xE882, 0x02BD, 0x3B87},
+		.band5 = {0x4C87, 0xF3D0, 0x063F, 0x3ED4, 0x3FB1},
+	},
+	{ /* BASS=12dB, TREBLE=+12dB */
+		.name = "LOUD12DB",
+		.rate = 16000,
+		.band1 = {0x7FC1, 0xC001, 0x3D07, 0x0058, 0x1344},
+		.band2 = {0x2DA6, 0xC013, 0x3CF1, 0x02FF, 0x138B},
+		.band3 = {0x18F1, 0xC08E, 0x244D, 0x0863, 0x34B5},
+		.band4 = {0x2BE0, 0xF385, 0x04FD, 0x3EC5, 0x3FCE},
+		.band5 = {0x7FEF, 0x4000, 0x0BAB, 0x0000, 0x3EED},
+	},
+};
+
+static struct max98095_pdata enterprise_max98095_pdata = {
+	/* equalizer configuration */
+	.eq_cfg = max98095_eq_cfg,
+	.eq_cfgcnt = ARRAY_SIZE(max98095_eq_cfg),
+
+	/* Biquad filter response configuration */
+	.bq_cfg = NULL,
+	.bq_cfgcnt = 0,
+
+	/* microphone configuration */
+	.digmic_left_mode = 1,
+	.digmic_right_mode = 1,
+};
+
+static struct i2c_board_info __initdata cardhu_codec_wm8903_info[] = {
+	{
+		I2C_BOARD_INFO("wm8903", 0x1a),
+		.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CDC_IRQ),
+		.platform_data = &cardhu_wm8903_pdata,
+	},
+};
+
+static struct i2c_board_info __initdata cardhu_codec_rt5640_info[] = {
+	{
+		 I2C_BOARD_INFO("rt5640", 0x1c),
+		.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CDC_IRQ),
+	},
+};
+
+static struct i2c_board_info __initdata cardhu_codec_max98095_info[] = {
+	{
+		I2C_BOARD_INFO("max98095", 0x10),
+		.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CDC_IRQ),
+		.platform_data = &enterprise_max98095_pdata,
+	},
 };
 
 static void cardhu_i2c_init(void)
 {
+	struct board_info pmu_board_info;
+
+	tegra_get_pmu_board_info(&pmu_board_info);
+
 	tegra_i2c_device1.dev.platform_data = &cardhu_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &cardhu_i2c2_platform_data;
 	tegra_i2c_device3.dev.platform_data = &cardhu_i2c3_platform_data;
@@ -301,7 +417,15 @@ static void cardhu_i2c_init(void)
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device1);
 
-	i2c_register_board_info(4, &wm8903_board_info, 1);
+	i2c_register_board_info(4, cardhu_codec_wm8903_info, 1);
+	i2c_register_board_info(4, cardhu_codec_max98095_info, 1);
+
+	/* Don't register ALC5640 device if there is MAX77663 PMU on system,
+	 * because MAX77663 PMU and ALC5640 Audio Codec are using same i2c addr
+	 * on same i2c bus. */
+	if (pmu_board_info.board_id != BOARD_PMU_PM298)
+		i2c_register_board_info(4, cardhu_codec_rt5640_info, 1);
+
 	i2c_register_board_info(2, cardhu_i2c_bus3_board_info, 1);
 }
 
@@ -321,6 +445,7 @@ static struct uart_clk_parent uart_parent_clk[] = {
 };
 
 static struct tegra_uart_platform_data cardhu_uart_pdata;
+static struct tegra_uart_platform_data cardhu_loopback_uart_pdata;
 
 static void __init uart_debug_init(void)
 {
@@ -344,6 +469,8 @@ static void __init uart_debug_init(void)
 			(board_info.board_id == BOARD_E1257))
 				debug_port_id = 1;
 	}
+
+	tegra_init_debug_uart_rate();
 	switch (debug_port_id) {
 	case 0:
 		/* UARTA is the debug port. */
@@ -418,11 +545,16 @@ static void __init cardhu_uart_init(void)
 	}
 	cardhu_uart_pdata.parent_clk_list = uart_parent_clk;
 	cardhu_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
+	cardhu_loopback_uart_pdata.parent_clk_list = uart_parent_clk;
+	cardhu_loopback_uart_pdata.parent_clk_count =
+						ARRAY_SIZE(uart_parent_clk);
+	cardhu_loopback_uart_pdata.is_loopback = true;
 	tegra_uarta_device.dev.platform_data = &cardhu_uart_pdata;
 	tegra_uartb_device.dev.platform_data = &cardhu_uart_pdata;
 	tegra_uartc_device.dev.platform_data = &cardhu_uart_pdata;
 	tegra_uartd_device.dev.platform_data = &cardhu_uart_pdata;
-	tegra_uarte_device.dev.platform_data = &cardhu_uart_pdata;
+	/* UARTE is used for loopback test purpose */
+	tegra_uarte_device.dev.platform_data = &cardhu_loopback_uart_pdata;
 
 	/* Register low speed only if it is selected */
 	if (!is_tegra_debug_uartport_hs()) {
@@ -507,6 +639,16 @@ static void __init cardhu_spi_init(void)
 	}
 }
 
+static void __init cardhu_dtv_init(void)
+{
+	struct board_info board_info;
+
+	tegra_get_board_info(&board_info);
+
+	if (board_info.board_id == BOARD_E1186)
+		platform_device_register(&tegra_dtv_device);
+}
+
 static struct resource tegra_rtc_resources[] = {
 	[0] = {
 		.start = TEGRA_RTC_BASE,
@@ -527,7 +669,7 @@ static struct platform_device tegra_rtc_device = {
 	.num_resources = ARRAY_SIZE(tegra_rtc_resources),
 };
 
-static struct tegra_wm8903_platform_data cardhu_audio_pdata = {
+static struct tegra_wm8903_platform_data cardhu_audio_wm8903_pdata = {
 	.gpio_spkr_en		= TEGRA_GPIO_SPKR_EN,
 	.gpio_hp_det		= TEGRA_GPIO_HP_DET,
 	.gpio_hp_mute		= -1,
@@ -535,25 +677,44 @@ static struct tegra_wm8903_platform_data cardhu_audio_pdata = {
 	.gpio_ext_mic_en	= -1,
 };
 
-static struct platform_device cardhu_audio_device = {
+static struct tegra_rt5640_platform_data cardhu_audio_rt5640_pdata = {
+	.gpio_spkr_en		= -1,
+	.gpio_hp_det		= TEGRA_GPIO_HP_DET,
+	.gpio_hp_mute		= -1,
+	.gpio_int_mic_en	= -1,
+	.gpio_ext_mic_en	= -1,
+};
+
+static struct tegra_asoc_platform_data cardhu_audio_max98095_pdata = {
+	.gpio_spkr_en		= -1,
+	.gpio_hp_det		= TEGRA_GPIO_HP_DET,
+	.gpio_hp_mute		= -1,
+	.gpio_int_mic_en	= -1,
+	.gpio_ext_mic_en	= -1,
+};
+
+static struct platform_device cardhu_audio_wm8903_device = {
 	.name	= "tegra-snd-wm8903",
 	.id	= 0,
 	.dev	= {
-		.platform_data  = &cardhu_audio_pdata,
+		.platform_data = &cardhu_audio_wm8903_pdata,
 	},
 };
 
-static struct resource ram_console_resources[] = {
-	{
-		.flags = IORESOURCE_MEM,
+static struct platform_device cardhu_audio_rt5640_device = {
+	.name	= "tegra-snd-rt5640",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &cardhu_audio_rt5640_pdata,
 	},
 };
 
-static struct platform_device ram_console_device = {
-	.name 		= "ram_console",
-	.id 		= -1,
-	.num_resources	= ARRAY_SIZE(ram_console_resources),
-	.resource	= ram_console_resources,
+static struct platform_device cardhu_audio_max98095_device = {
+	.name	= "tegra-snd-max98095",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &cardhu_audio_max98095_pdata,
+	},
 };
 
 static struct platform_device *cardhu_devices[] __initdata = {
@@ -582,12 +743,12 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&bluetooth_dit_device,
 	&cardhu_bcm4329_rfkill_device,
 	&tegra_pcm_device,
-	&cardhu_audio_device,
+	&cardhu_audio_wm8903_device,
+	&cardhu_audio_max98095_device,
 	&tegra_hda_device,
 #if defined(CONFIG_CRYPTO_DEV_TEGRA_AES)
 	&tegra_aes_device,
 #endif
-	&ram_console_device,
 };
 
 #define MXT_CONFIG_CRC  0xD62DE8
@@ -705,6 +866,7 @@ static struct tegra_ehci_platform_data tegra_ehci_uhsic_pdata = {
 	.phy_config = &uhsic_phy_config,
 	.operating_mode = TEGRA_USB_HOST,
 	.power_down_on_bus_suspend = 1,
+	.default_enable = true,
 };
 
 static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
@@ -712,17 +874,20 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 			.phy_config = &utmi_phy_config[0],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
+			.default_enable = true,
 	},
 	[1] = {
 			.phy_config = &utmi_phy_config[1],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
+			.default_enable = true,
 	},
 	[2] = {
 			.phy_config = &utmi_phy_config[2],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
 			.hotplug = 1,
+			.default_enable = true,
 	},
 };
 
@@ -963,6 +1128,10 @@ static void cardhu_sata_init(void) { }
 
 static void __init tegra_cardhu_init(void)
 {
+	struct board_info pmu_board_info;
+
+	tegra_get_pmu_board_info(&pmu_board_info);
+
 	tegra_thermal_init(&thermal_data);
 	tegra_clk_init_from_table(cardhu_clk_init_table);
 	cardhu_pinmux_init();
@@ -975,9 +1144,17 @@ static void __init tegra_cardhu_init(void)
 	cardhu_uart_init();
 	cardhu_tsensor_init();
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));
+
+	/* Don't register ALC5640 device if there is MAX77663 PMU on system,
+	 * because MAX77663 PMU and ALC5640 Audio Codec are using same i2c addr
+	 * on same i2c bus. */
+	if (pmu_board_info.board_id != BOARD_PMU_PM298)
+		platform_device_register(&cardhu_audio_rt5640_device);
+
+	tegra_ram_console_debug_init();
 	cardhu_sdhci_init();
 	cardhu_regulator_init();
-	cardhu_gpio_switch_regulator_init();
+	cardhu_dtv_init();
 	cardhu_suspend_init();
 	cardhu_power_off_init();
 	cardhu_touch_init();
@@ -1002,26 +1179,6 @@ static void __init tegra_cardhu_init(void)
 #endif
 }
 
-static void __init cardhu_ramconsole_reserve(unsigned long size)
-{
-	struct resource *res;
-	long ret;
-
-	res = platform_get_resource(&ram_console_device, IORESOURCE_MEM, 0);
-	if (!res) {
-		pr_err("Failed to find memory resource for ram console\n");
-		return;
-	}
-	res->start = memblock_end_of_DRAM() - size;
-	res->end = res->start + size - 1;
-	ret = memblock_remove(res->start, size);
-	if (ret) {
-		ram_console_device.resource = NULL;
-		ram_console_device.num_resources = 0;
-		pr_err("Failed to reserve memory block for ram console\n");
-	}
-}
-
 static void __init tegra_cardhu_reserve(void)
 {
 #if defined(CONFIG_NVMAP_CONVERT_CARVEOUT_TO_IOVMM)
@@ -1030,7 +1187,7 @@ static void __init tegra_cardhu_reserve(void)
 #else
 	tegra_reserve(SZ_128M, SZ_8M, SZ_8M);
 #endif
-	cardhu_ramconsole_reserve(SZ_1M);
+	tegra_ram_console_debug_reserve(SZ_1M);
 }
 
 MACHINE_START(CARDHU, "cardhu")

@@ -41,6 +41,10 @@ static RAW_NOTIFIER_HEAD(cpu_chain);
  */
 static int cpu_hotplug_disabled;
 
+#if defined(CONFIG_ARCH_ACER_T30)
+extern void enable_tick_nohz(unsigned int bits,unsigned int cpu);
+#endif
+
 #ifdef CONFIG_HOTPLUG_CPU
 
 static struct {
@@ -300,6 +304,9 @@ static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 		return -EINVAL;
 
 	cpu_hotplug_begin();
+#if defined(CONFIG_ARCH_ACER_T30)
+	enable_tick_nohz(1, cpu);
+#endif
 	ret = __cpu_notify(CPU_UP_PREPARE | mod, hcpu, -1, &nr_calls);
 	if (ret) {
 		nr_calls--;

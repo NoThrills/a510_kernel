@@ -37,7 +37,6 @@
 #include <mach/irqs.h>
 #include <mach/pinmux.h>
 #include <mach/edp.h>
-#include <mach/tsensor.h>
 
 #ifdef CONFIG_BATTERY_BQ27541
 #include <linux/bq27541.h>
@@ -48,6 +47,7 @@
 #include "board-acer-t30.h"
 #include "pm.h"
 #include "wakeups-t3.h"
+#include "tegra3_tsensor.h"
 
 #define PMC_CTRL		0x0
 #define PMC_CTRL_INTR_LOW	(1 << 17)
@@ -120,8 +120,10 @@ static struct regulator_consumer_supply tps6591x_ldo2_supply_0[] = {
 };
 
 static struct regulator_consumer_supply tps6591x_ldo3_supply_0[] = {
+#if !defined(CONFIG_MACH_PICASSO_E2)
 	REGULATOR_SUPPLY("vddio_sdmmc1", NULL),
 	REGULATOR_SUPPLY("pwrdet_sdmmc1", NULL),
+#endif
 };
 
 static struct regulator_consumer_supply tps6591x_ldo4_supply_0[] = {
@@ -129,6 +131,10 @@ static struct regulator_consumer_supply tps6591x_ldo4_supply_0[] = {
 };
 
 static struct regulator_consumer_supply tps6591x_ldo5_supply_0[] = {
+#if defined(CONFIG_MACH_PICASSO_E2)
+	REGULATOR_SUPPLY("vddio_sdmmc1", NULL),
+	REGULATOR_SUPPLY("pwrdet_sdmmc1", NULL),
+#endif
 	REGULATOR_SUPPLY("avdd_vdac", NULL),
 };
 
@@ -148,6 +154,37 @@ static struct regulator_consumer_supply tps6591x_ldo8_supply_0[] = {
 	REGULATOR_SUPPLY("vdd_ddr_hs", NULL),
 };
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+#define TPS_PDATA_INIT(_name, _sname, _minmv, _maxmv, _supply_reg, _always_on, \
+	_boot_on, _apply_uv, _init_uV, _init_enable, _init_apply, _ectrl, _flags, _off) \
+	static struct tps6591x_regulator_platform_data pdata_##_name##_##_sname = \
+	{								\
+		.regulator = {						\
+			.constraints = {				\
+				.min_uV = (_minmv)*1000,		\
+				.max_uV = (_maxmv)*1000,		\
+				.valid_modes_mask = (REGULATOR_MODE_NORMAL |  \
+						     REGULATOR_MODE_STANDBY), \
+				.valid_ops_mask = (REGULATOR_CHANGE_MODE |    \
+						   REGULATOR_CHANGE_STATUS |  \
+						   REGULATOR_CHANGE_VOLTAGE), \
+				.always_on = _always_on,		\
+				.boot_on = _boot_on,			\
+				.apply_uV = _apply_uv,			\
+			},						\
+			.num_consumer_supplies =			\
+				ARRAY_SIZE(tps6591x_##_name##_supply_##_sname),	\
+			.consumer_supplies = tps6591x_##_name##_supply_##_sname,	\
+			.supply_regulator = _supply_reg,		\
+		},							\
+		.init_uV =  _init_uV * 1000,				\
+		.init_enable = _init_enable,				\
+		.init_apply = _init_apply,				\
+		.ectrl = _ectrl,					\
+		.flags = _flags,					\
+		.shutdown_state_off = _off,				\
+	}
+#else
 #define TPS_PDATA_INIT(_name, _sname, _minmv, _maxmv, _supply_reg, _always_on, \
 	_boot_on, _apply_uv, _init_uV, _init_enable, _init_apply, _ectrl, _flags) \
 	static struct tps6591x_regulator_platform_data pdata_##_name##_##_sname = \
@@ -176,21 +213,33 @@ static struct regulator_consumer_supply tps6591x_ldo8_supply_0[] = {
 		.ectrl = _ectrl,					\
 		.flags = _flags,					\
 	}
+#endif
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+TPS_PDATA_INIT(vdd2, 0,         600,  1500, 0, 1, 1, 0, -1, 0, 0, 0, 0, false);
+TPS_PDATA_INIT(vddctrl, 0,      600,  1400, 0, 1, 1, 0, 1000, 0, 1, EXT_CTRL_EN1, 0, true);
+TPS_PDATA_INIT(vio,  0,         1500, 3300, 0, 1, 1, 0, -1, 0, 0, 0, 0, false);
+TPS_PDATA_INIT(ldo1, 0,         1000, 3300, 0, 1, 0, 0, 1050, 1, 1, 0, 0, true);
+TPS_PDATA_INIT(ldo2, 0,         1000, 3300, 0, 0, 0, 1, 1200, 0, 1, 0, 0, false);
+TPS_PDATA_INIT(ldo3, 0,         1000, 3300, 0, 0, 0, 1, 1200, 0, 1, 0, 0, true);
+TPS_PDATA_INIT(ldo4, 0,         1000, 3300, 0, 1, 0, 0, -1, 0, 0, 0, LDO_LOW_POWER_ON_SUSPEND, false);
+TPS_PDATA_INIT(ldo5, 0,         1000, 3300, 0, 0, 0, 1, 3300, 0, 1, 0, 0, true);
+TPS_PDATA_INIT(ldo6, 0,         1000, 3300, tps6591x_rails(VIO), 0, 0, 0, 1200, 0, 1, 0, 0, true);
+TPS_PDATA_INIT(ldo7, 0,         1200, 1200, tps6591x_rails(VIO), 1, 1, 1, -1, 0, 0, 0, LDO_LOW_POWER_ON_SUSPEND, false);
+TPS_PDATA_INIT(ldo8, 0,         1000, 3300, tps6591x_rails(VIO), 1, 0, 0, -1, 0, 0, 0, LDO_LOW_POWER_ON_SUSPEND, false);
+#else
 TPS_PDATA_INIT(vdd2, 0,         600,  1500, 0, 1, 1, 0, -1, 0, 0, 0, 0);
 TPS_PDATA_INIT(vddctrl, 0,      600,  1400, 0, 1, 1, 0, 1000, 0, 1, EXT_CTRL_EN1, 0);
 TPS_PDATA_INIT(vio,  0,         1500, 3300, 0, 1, 1, 0, -1, 0, 0, 0, 0);
-
 TPS_PDATA_INIT(ldo1, 0,         1000, 3300, 0, 1, 0, 0, 2850, 1, 1, 0, 0);
 TPS_PDATA_INIT(ldo2, 0,         1000, 3300, 0, 0, 0, 1, 3300, 0, 1, 0, 0);
-
 TPS_PDATA_INIT(ldo3, 0,         1000, 3300, 0, 0, 0, 1, 3300, 0, 1, 0, 0);
 TPS_PDATA_INIT(ldo4, 0,         1000, 3300, 0, 1, 0, 0, -1, 0, 0, 0, LDO_LOW_POWER_ON_SUSPEND);
 TPS_PDATA_INIT(ldo5, 0,         1000, 3300, 0, 1, 0, 0, 2800, 0, 1, 0, 0);
-
 TPS_PDATA_INIT(ldo6, 0,         1000, 3300, tps6591x_rails(VIO), 0, 0, 0, 1200, 0, 1, 0, 0);
 TPS_PDATA_INIT(ldo7, 0,         1200, 1200, tps6591x_rails(VIO), 1, 1, 1, -1, 0, 0, 0, LDO_LOW_POWER_ON_SUSPEND);
 TPS_PDATA_INIT(ldo8, 0,         1000, 3300, tps6591x_rails(VIO), 1, 0, 0, -1, 0, 0, 0, LDO_LOW_POWER_ON_SUSPEND);
+#endif
 
 #if defined(CONFIG_RTC_DRV_TPS6591x)
 static struct tps6591x_rtc_platform_data rtc_data = {

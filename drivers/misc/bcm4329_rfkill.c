@@ -33,7 +33,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 #include <linux/gpio.h>
 #include "../../../arch/arm/mach-tegra/gpio-names.h"
 #endif
@@ -43,7 +43,7 @@ struct bcm4329_rfkill_data {
 	int gpio_shutdown;
 	int delay;
 	struct clk *bt_32k_clk;
-#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 	int gpio_wifi_reset;
 	int gpio_bcm_vdd;
 #endif
@@ -52,7 +52,65 @@ struct bcm4329_rfkill_data {
 static struct bcm4329_rfkill_data *bcm4329_rfkill;
 
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+static struct kobject *devInfoBT_kobj;
+char vendor_id[20];
+
+static ssize_t vendor_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char * s = buf;
+	s += sprintf(s,"%s", vendor_id);
+	pr_info("#%s  The vendor string %s length is %d", __FUNCTION__, s, s-buf);
+	return (s - buf);
+}
+
+static ssize_t vendor_store(struct kobject *kobj, struct kobj_attribute *attr, const char * buf, size_t n)
+{
+	char *s = buf;
+	pr_info("#%s  The vendor string %s length is %d", __FUNCTION__, buf, n);
+	if (n <= 20)
+	{
+		memset(vendor_id,'\0',sizeof(vendor_id));
+		memcpy(vendor_id, s, n);
+	}
+	return n;
+}
+
+#define debug_attr(_name) \
+        static struct kobj_attribute _name##_attr = { \
+        .attr = { \
+        .name = __stringify(_name), \
+        .mode = 0644, \
+        }, \
+        .show = _name##_show, \
+        .store = _name##_store, \
+        }
+
+debug_attr(vendor);
+
+static struct attribute * bt_group[] = {
+        &vendor_attr.attr,
+        NULL,
+};
+
+static struct attribute_group attr_bt_group = {
+        .attrs = bt_group,
+};
+
+static void create_bt_dev_sys(void)
+{
+        int error;
+
+        devInfoBT_kobj = kobject_create_and_add("dev-info_bt", NULL);
+        if (devInfoBT_kobj == NULL)
+                pr_info("## %s kobject_create_and_add failed\n", __FUNCTION__);
+
+        error = sysfs_create_group(devInfoBT_kobj, &attr_bt_group);
+        if (error)
+                pr_info("## %s sysfs_create_group failed\n", __FUNCTION__);
+        return;
+}
+
+#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 
 #define UART3_RX_GPIO    TEGRA_GPIO_PW7
 #define UART3_TX_GPIO    TEGRA_GPIO_PW6
@@ -151,7 +209,7 @@ static int bcm4329_bt_rfkill_set_power(void *data, bool blocked)
 			pr_info("%s: bcm4329_rfkill->bt_32k_clk = disable.\n", __func__);
 		}
 
-#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 		if (bcm4329_rfkill->gpio_bcm_vdd) {
 			if (!gpio_get_value(bcm4329_rfkill->gpio_wifi_reset)) {
 				gpio_direction_output(bcm4329_rfkill->gpio_bcm_vdd, 0);
@@ -160,18 +218,18 @@ static int bcm4329_bt_rfkill_set_power(void *data, bool blocked)
 		}
 #endif
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 		tegra_uart_fun_off();
 #endif
 
 	} else {
 		pr_info("%s: BT Power on.\n", __func__);
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 		tegra_uart_fun_on();
 #endif
 
-#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 		if (bcm4329_rfkill->gpio_bcm_vdd) {
 			if (!gpio_get_value(bcm4329_rfkill->gpio_wifi_reset)) {
 				pr_info("%s: bcm4329_rfkill->gpio_bcm_vdd = 1.\n", __func__);
@@ -189,7 +247,7 @@ static int bcm4329_bt_rfkill_set_power(void *data, bool blocked)
 		{
 			pr_info("%s: bcm4329_rfkill->gpio_shutdown = 1.\n", __func__);
 			gpio_direction_output(bcm4329_rfkill->gpio_shutdown, 1);
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 			msleep(100);
 #endif
 		}
@@ -213,8 +271,9 @@ static int bcm4329_rfkill_probe(struct platform_device *pdev)
 	int ret;
 	bool enable = false;  /* off */
 	bool default_sw_block_state;
+	create_bt_dev_sys();
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 	tegra_uart_fun_off();
 #endif
 
@@ -253,7 +312,7 @@ static int bcm4329_rfkill_probe(struct platform_device *pdev)
 		bcm4329_rfkill->gpio_shutdown = 0;
 	}
 
-#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_MACH_PICASSO_E) || defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) || defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_MACH_PICASSO_MF)
 	res = platform_get_resource_byname(pdev, IORESOURCE_IO,
 					"bcm4329_wifi_reset_gpio");
 	if (res) {

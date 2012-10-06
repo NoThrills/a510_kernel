@@ -99,7 +99,7 @@ obj-$(CONFIG_TEGRA_CLUSTER_CONTROL)     += sysfs-cluster.o
 ifeq ($(CONFIG_TEGRA_MC_PROFILE),y)
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_mc.o
 endif
-obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_tsensor.o
+obj-$(CONFIG_SENSORS_TEGRA_TSENSOR)     += tegra3_tsensor.o
 obj-$(CONFIG_TEGRA_DYNAMIC_PWRDET)      += powerdetect.o
 obj-$(CONFIG_TEGRA_USB_MODEM_POWER)     += tegra_usb_modem_power.o
 obj-$(CONFIG_TEGRA_PCI)                 += pcie.o
@@ -158,6 +158,9 @@ obj-${CONFIG_MACH_CARDHU}               += board-cardhu-sensors.o
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu-memory.o
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu-powermon.o
 
+obj-${CONFIG_MACH_KAI}                  += board-touch-kai-synaptics-spi.o
+obj-${CONFIG_MACH_KAI}                  += board-touch-kai-raydium_spi.o
+
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-panel.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-pinmux.o
@@ -167,6 +170,14 @@ obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-power.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-baseband.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-kbc.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-sensors.o
+
+obj-${CONFIG_MACH_KAI}                  += board-kai.o
+obj-${CONFIG_MACH_KAI}                  += board-kai-kbc.o
+obj-${CONFIG_MACH_KAI}                  += board-kai-memory.o
+obj-${CONFIG_MACH_KAI}                  += board-kai-panel.o
+obj-${CONFIG_MACH_KAI}                  += board-kai-pinmux.o
+obj-${CONFIG_MACH_KAI}                  += board-kai-power.o
+obj-${CONFIG_MACH_KAI}                  += board-kai-sdhci.o
 
 obj-${CONFIG_TEGRA_BB_XMM_POWER}        += baseband-xmm-power.o
 obj-${CONFIG_TEGRA_BB_XMM_POWER2}       += baseband-xmm-power2.o

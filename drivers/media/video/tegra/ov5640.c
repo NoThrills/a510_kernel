@@ -48,6 +48,7 @@ struct ov5640_info {
 };
 
 #define OV5640_MAX_RETRIES  3
+#define OV5640_MAX_TRANSFER_SIZE  256
 
 static int ov5640_read_reg(struct i2c_client *client, u16 addr, u8 *val)
 {
@@ -117,6 +118,63 @@ static int ov5640_write_reg(struct i2c_client *client, u16 addr, u8 val)
 	} while (retry <= OV5640_MAX_RETRIES);
 
 	return err;
+}
+
+// the first two bytes of data[] refer to the start address
+// and the rest of data[] refers to the written data
+static int ov5640_sequential_write_reg(struct i2c_client *client, u8 *data, u16 length)
+{
+	int err, retry = 0;
+	struct i2c_msg msg;
+
+	if (!client->adapter)
+		return -ENODEV;
+
+	msg.addr = client->addr;
+	msg.flags = 0;
+	msg.len = length;
+	msg.buf = data;
+
+	do {
+		err = i2c_transfer(client->adapter, &msg, 1);
+		if (err == 1)
+			return 0;
+
+		retry++;
+		pr_err("%s: i2c transfer failed, retrying\n", __func__);
+		msleep(10);
+	} while (retry <= OV5640_MAX_RETRIES);
+
+	return err;
+}
+
+// sequential_write_table will use sequential_write_reg to sequential write the table in chunks
+// addr refers to the start address
+// table[] refers to the written data
+// length refers to the length of the written data
+static int ov5640_sequential_write_table(struct ov5640_info *info, u16 addr, u8 *table, u16 length)
+{
+	int err;
+	u16 bytes_written = 0, temp_length;
+	u8 temp_data[OV5640_MAX_TRANSFER_SIZE + 2];
+
+	while (bytes_written < length) {
+		temp_length = min(OV5640_MAX_TRANSFER_SIZE, length - bytes_written);
+		temp_data[0] = (u8) ((addr+bytes_written) >> 8);
+		temp_data[1] = (u8) ((addr+bytes_written) & 0xFF);
+
+		memcpy(&temp_data[2], &table[bytes_written], temp_length);
+
+		err = ov5640_sequential_write_reg(info->i2c_client, temp_data, temp_length+2);
+		if (err != 0) {
+			pr_err("%s failed\n", __func__);
+			return err;
+		}
+
+		bytes_written += temp_length;
+	}
+
+	return 0;
 }
 
 #if defined(CONFIG_TORCH_TPS61050YZGR)
@@ -514,10 +572,12 @@ static int ov5640_capture_cmd(struct ov5640_info *info)
 			(info->focus_mode==OV5640_AF_ABORT && ov5640_is_lowlight_mode(info))) {
 			tps61050_turn_on_flash();
 			info->flash_status = 1;
+			msleep(200);
 		}
 	} else if (info->flash_mode == OV5640_FlashMode_On) {
 		tps61050_turn_on_flash();
 		info->flash_status = 1;
+		msleep(200);
 	}
 #endif
 
@@ -533,10 +593,10 @@ static int ov5640_get_exposure_time(struct ov5640_info *info, struct ov5640_rati
 	ov5640_read_reg(info->i2c_client, 0x3502, &reg_3502);
 
 	// exposure_time = sec_per_line * exposure_lines
-	// sec_per_line = 1 sec / (24 frames * 984 VTS per frame)
+	// sec_per_line = 1 sec / (30 frames * 984 VTS per frame)
 	// exposure_lines = 0x3500 bit[3:0], 0x3501 bit[7:0], 0x3502 bit[7:4]
 	exposure_time->numerator = (u32)reg_3500<<12 | (u32)reg_3501<<4 | (u32)reg_3502>>4;
-	exposure_time->denominator = 23616;
+	exposure_time->denominator = 29520;
 	pr_info("%s: exposure_lines = %lu\n", __func__, exposure_time->numerator);
 
 	return 0;
@@ -613,6 +673,37 @@ static long ov5640_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
+static int ov5640_af_initialize(struct ov5640_info *info)
+{
+	pr_info("%s\n", __func__);
+
+	// disable MCU
+	ov5640_write_reg(info->i2c_client, 0x3000, 0x20);
+
+	// write AF firmware code
+	ov5640_sequential_write_table(info, 0x8000, af_firmware_code, sizeof(af_firmware_code));
+
+	// reset all the command registers
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_MAIN,  0x00);
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_ACK,   0x00);
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_PARA0, 0x00);
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_PARA1, 0x00);
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_PARA2, 0x00);
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_PARA3, 0x00);
+	ov5640_write_reg(info->i2c_client, OV5640_AF_CMD_PARA4, 0x00);
+
+	// change FW_STATUS to S_FIRWARE after firmware is downloaded
+	ov5640_write_reg(info->i2c_client, OV5640_AF_FW_STATUS, OV5640_FW_S_FIRWARE);
+
+	// enable MCU
+	ov5640_write_reg(info->i2c_client, 0x3000, 0x00);
+
+	// wait for firmware initialization
+	msleep(5);
+
+	return 0;
+}
+
 static int ov5640_initialize(struct ov5640_info *info)
 {
 	int err, retry = 0;
@@ -668,8 +759,9 @@ static int ov5640_initialize(struct ov5640_info *info)
 	if (err)
 		return err;
 
-	// write AF firmware code
-	ov5640_write_table(info, af_firmware_code);
+	// AF firmware initialize
+	ov5640_af_initialize(info);
+
 	do {
 		ov5640_read_reg(info->i2c_client, OV5640_AF_FW_STATUS, &fw_status);
 		if (fw_status == OV5640_FW_S_IDLE) {

@@ -28,7 +28,7 @@
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 #define KEY_POWER 116
 #define POWER_KEY_ACT 0
 extern int p2_wakeup;
@@ -330,7 +330,7 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 	struct gpio_keys_button *button = bdata->button;
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 	int state;
 	if ((p2_wakeup == POWER_KEY_ACT) && (button->code == KEY_POWER))
 	{

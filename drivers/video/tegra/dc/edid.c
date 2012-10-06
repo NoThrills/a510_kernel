@@ -276,7 +276,6 @@ int tegra_edid_parse_ext_block(const u8 *raw, int idx,
 				(ptr[2] == 0x0c) &&
 				(ptr[3] == 0)) {
 #if defined(CONFIG_ARCH_ACER_T30) || defined(CONFIG_ARCH_ACER_T20)
-				edid->eld.vsdb = 1;
 				*vsdb = 1;
 #endif
 				j = 8;
@@ -509,6 +508,7 @@ int tegra_edid_get_monspecs(struct tegra_edid *edid, struct fb_monspecs *specs)
 	edid->data = new_data;
 #if defined(CONFIG_ARCH_ACER_T30) || defined(CONFIG_ARCH_ACER_T20)
 	edid->vsdb = vsdb;
+	edid->support_audio = extension_blocks?: 0;
 #endif
 	mutex_unlock(&edid->lock);
 

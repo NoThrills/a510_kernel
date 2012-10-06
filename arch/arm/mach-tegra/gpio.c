@@ -34,8 +34,12 @@
 #include <mach/iomap.h>
 #include "pm-irq.h"
 #include <mach/pinmux.h>
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 #include "gpio-names.h"
+#include "board-acer-t30.h"
+#include "gpio-pe2.h"
+extern int acer_board_id;
+extern int acer_board_type;
 #endif
 
 #define GPIO_BANK(x)		((x) >> 5)
@@ -70,6 +74,7 @@
 				 GPIO_BANK(x) * 0x100 +		\
 				 GPIO_PORT(x) * 4)
 
+#if defined(CONFIG_ARCH_ACER_T30)
 #define GPIO_MSK_CNF(x)		(GPIO_REG(x) + 0x80)
 #define GPIO_MSK_OE(x)		(GPIO_REG(x) + 0x90)
 #define GPIO_MSK_OUT(x)		(GPIO_REG(x) + 0XA0)
@@ -85,53 +90,11 @@
 #define GPIO_INT_LVL_LEVEL_HIGH		0x000001
 #define GPIO_INT_LVL_LEVEL_LOW		0x000000
 
-// GPIO configuration
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
-#define GPIO_HIGH	1
-#define GPIO_LOW	0
-#define GPIO_ENABLE	1
-#define GPIO_DISABLE	0
-#define GPIO_OUTPUT	1
-#define GPIO_INPUT	0
-
 #define	BANK_MASK	0b111
 #define	OE_MASK		0b11
 #define	GPIOBIT_MASK	0b111
 
-/* Board Type */
-#define BOARD_PICASSO_2 0
-#define BOARD_PICASSO_M 1
-
-/* Board ID */
-#define BOARD_EVT       0
-#define BOARD_DVT1      1
-#define BOARD_DVT2      2
-#define BOARD_PVT       3
-
-/* SKU type */
-#define BOARD_SKU_WIFI  0
-#define BOARD_SKU_3G    1
-#define BOARD_SKU_LTE   2
-
 extern int acer_sku;
-
-struct gpio_table{
-	const char *name;
-	int     gpio;
-	int     value;
-	int     enabled;
-	int     direction;
-	int     restore;
-};
-
-#define GPIO_CONFIG(_name, _gpio, _enabled, _value, _direction) \
-	{							\
-		.name = _name,					\
-		.gpio = _gpio,					\
-		.value = _value,				\
-		.enabled = _enabled,				\
-		.direction = _direction,			\
-	}
 
 void suspend_pinmux_setting(void);
 #endif // GPIO configuration
@@ -164,6 +127,21 @@ static struct tegra_gpio_bank tegra_gpio_banks[] = {
 	{.bank = 7, .irq = INT_GPIO8},
 #endif
 };
+
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+static struct tegra_gpio_bank tegra_gpio_sleep_banks[] = {
+	{.bank = 0, .irq = INT_GPIO1},
+	{.bank = 1, .irq = INT_GPIO2},
+	{.bank = 2, .irq = INT_GPIO3},
+	{.bank = 3, .irq = INT_GPIO4},
+	{.bank = 4, .irq = INT_GPIO5},
+	{.bank = 5, .irq = INT_GPIO6},
+	{.bank = 6, .irq = INT_GPIO7},
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+	{.bank = 7, .irq = INT_GPIO8},
+#endif
+};
+#endif
 
 static int tegra_gpio_compose(int bank, int port, int bit)
 {
@@ -621,8 +599,8 @@ static int dbg_gpio_sleep_show(struct seq_file *s, void *unused)
 
 	seq_printf(s, "GPIO Sleep State:\n------------------------------------------\n");
 	seq_printf(s, "GPIO CNF OE OUT IN INT_ENB INT_LVL\n");
-	for (i = 0; i < ARRAY_SIZE(tegra_gpio_banks); i++) {
-		struct tegra_gpio_bank *bank = &tegra_gpio_banks[i];
+	for (i = 0; i < ARRAY_SIZE(tegra_gpio_sleep_banks); i++) {
+		struct tegra_gpio_bank *bank = &tegra_gpio_sleep_banks[i];
 
 		for (j = 0; j < ARRAY_SIZE(bank->oe); j++) {
 			for (k = 0; k < 8; k++) {
@@ -643,6 +621,32 @@ static int dbg_gpio_sleep_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+int acer_gpio_sleep_table_store(void)
+{
+	unsigned long flags;
+	int b;
+	int p;
+
+	local_irq_save(flags);
+	for (b = 0; b < ARRAY_SIZE(tegra_gpio_sleep_banks); b++) {
+		struct tegra_gpio_bank *bank = &tegra_gpio_sleep_banks[b];
+
+		for (p = 0; p < ARRAY_SIZE(bank->oe); p++) {
+			unsigned int gpio = (b<<5) | (p<<3);
+			bank->cnf[p] = __raw_readl(GPIO_CNF(gpio));
+			bank->out[p] = __raw_readl(GPIO_OUT(gpio));
+			bank->in[p] = __raw_readl(GPIO_IN(gpio));
+			bank->oe[p] = __raw_readl(GPIO_OE(gpio));
+			bank->int_enb[p] = __raw_readl(GPIO_INT_ENB(gpio));
+			bank->int_lvl[p] = __raw_readl(GPIO_INT_LVL(gpio));
+		}
+	}
+
+	local_irq_restore(flags);
+        return 0;
+}
+
+
 static int dbg_gpio_sleep_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, dbg_gpio_sleep_show, &inode->i_private);
@@ -657,7 +661,7 @@ static const struct file_operations debug_sleep_fops = {
 #endif
 
 // GPIO configuration
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
+#if defined(CONFIG_ARCH_ACER_T30)
 static struct gpio_table gpio_unused_init_table[] = {
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PK6, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SPDIF_IN
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PK5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SPDIF_OUT
@@ -670,7 +674,6 @@ static struct gpio_table gpio_unused_init_table[] = {
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PO6, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // ULPI_DATA5
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PO7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // ULPI_DATA6
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PO0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // ULPI_DATA7
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PBB7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PBB7
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PCC1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PCC1
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PCC2, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PCC2
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PV6, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // CRT_HSYNC
@@ -693,7 +696,11 @@ static struct gpio_table gpio_unused_init_table[] = {
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PCC5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // CLK2_REQ
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PV2, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PV2
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PV3, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PV3
+#if defined(CONFIG_MACH_PICASSO_E2)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PD1, GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // SDMMC3_DAT4
+#else
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PD1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT4
+#endif
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PD0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT5
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PD3, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT6
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PD4, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT7
@@ -716,10 +723,20 @@ static struct gpio_table gpio_unused_init_table[] = {
 
 static struct gpio_table gpio_wifi_sku_table[] = {
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PI7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GMI_WAIT (3G_DISABLE#)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PBB7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PBB7 (3G_DISABLE2#)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PO5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), //ULPI_DATA4 (SIM_DET)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PC7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GMI_WP_N
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PU1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PU1
 };
 
 static struct gpio_table gpio_3G_sku_table[] = {
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PI7, GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // GMI_WAIT (3G_DISABLE#)
+#if defined(CONFIG_MACH_PICASSO_E2)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PI7,  GPIO_ENABLE, GPIO_LOW,  GPIO_OUTPUT), // GMI_WAIT  (3G_DISABLE#)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PBB7,GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // GPIO_PBB7 (3G_DISABLE2#)
+#else
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PI7,  GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // GMI_WAIT  (3G_DISABLE#)
+	GPIO_CONFIG(NULL, TEGRA_GPIO_PBB7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PBB7 (3G_DISABLE2#)
+#endif
 };
 
 static struct gpio_table gpio_sleep_init_table[] = {
@@ -747,7 +764,7 @@ static struct gpio_table gpio_sleep_init_table[] = {
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PH0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GMI_AD8 (LCD_PWM_OUT)
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PH1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GMI_AD9 (DISPOFF#)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PI4, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GMI_RST_N (EN_HDMI_5V0)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PI7, GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // GMI_WAIT (3G_DISABLE#)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PI7, GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // GMI_WAIT (3G_DISABLE#)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PE0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // LCD_D0 (LCD_D00)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PE1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // LCD_D1 (LCD_D01)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PF2, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // LCD_D10 (LCD_D10)
@@ -777,12 +794,12 @@ static struct gpio_table gpio_sleep_init_table[] = {
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PB3, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // LCD_PCLK (NV_LCD_PCLK)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PJ4, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // LCD_VSYNC (LCD_VSYNC)
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PW5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // CLK2_OUT (CP_GPIO)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PZ0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_CLK (SDMMC_CLK)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PZ1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_CMD (SDMMC_CMD)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PY7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT0 (SDMMC_DAT0)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PY6, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT1 (SDMMC_DAT1)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PY5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT2 (SDMMC_DAT2)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PY4, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT3 (SDMMC_DAT3)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PZ0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_CLK (SDMMC_CLK)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PZ1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_CMD (SDMMC_CMD)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PY7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT0 (SDMMC_DAT0)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PY6, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT1 (SDMMC_DAT1)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PY5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT2 (SDMMC_DAT2)
+	//GPIO_CONFIG(NULL, TEGRA_GPIO_PY4, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC1_DAT3 (SDMMC_DAT3)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PA6, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_CLK (WFMMC_CLK)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PA7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_CMD (WFMMC_CMD)
 	//GPIO_CONFIG(NULL, TEGRA_GPIO_PB7, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT0 (WFMMC_DAT0)
@@ -887,23 +904,50 @@ void gpio_unused_init(void)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	for (i = 0; i < ARRAY_SIZE(gpio_unused_init_table); i++) {
-		if (gpio_unused_init_table[i].enabled) {
-			gpio_request(gpio_unused_init_table[i].gpio, gpio_unused_init_table[i].name);
-			if (gpio_unused_init_table[i].direction == GPIO_OUTPUT) {
-				ret = gpio_direction_output(gpio_unused_init_table[i].gpio, gpio_unused_init_table[i].value);
-				if(ret)
-					pr_err("---%s:  GPIO(%d)  init error\n", __func__, gpio_unused_init_table[i].gpio);
-				else
+	switch(acer_board_type) {
+	case BOARD_PICASSO_2:
+	case BOARD_PICASSO_M:
+	case BOARD_PICASSO_MF:
+		for (i = 0; i < ARRAY_SIZE(gpio_unused_init_table); i++) {
+			if (gpio_unused_init_table[i].enabled) {
+				gpio_request(gpio_unused_init_table[i].gpio, gpio_unused_init_table[i].name);
+				if (gpio_unused_init_table[i].direction == GPIO_OUTPUT) {
+					ret = gpio_direction_output(gpio_unused_init_table[i].gpio, gpio_unused_init_table[i].value);
+					if(ret)
+						pr_err("---%s:  GPIO(%d)  init error\n", __func__, gpio_unused_init_table[i].gpio);
+					else
+						tegra_gpio_enable(gpio_unused_init_table[i].gpio);
+				}
+				else if (gpio_unused_init_table[i].direction == GPIO_INPUT) {
+					gpio_direction_input(gpio_unused_init_table[i].gpio);
 					tegra_gpio_enable(gpio_unused_init_table[i].gpio);
+				}
+				else
+					pr_err("%s : GPIO neither output nor input \n", __func__);
 			}
-			else if (gpio_unused_init_table[i].direction == GPIO_INPUT) {
-				gpio_direction_input(gpio_unused_init_table[i].gpio);
-				tegra_gpio_enable(gpio_unused_init_table[i].gpio);
-			}
-			else
-				pr_err("%s : GPIO neither output nor input \n", __func__);
 		}
+		break;
+	case BOARD_PICASSO_E2:
+		for (i = 0; i < ARRAY_SIZE(picasso_E2_gpio_unused_init_table); i++) {
+			if (picasso_E2_gpio_unused_init_table[i].enabled) {
+				gpio_request(picasso_E2_gpio_unused_init_table[i].gpio, picasso_E2_gpio_unused_init_table[i].name);
+				if (picasso_E2_gpio_unused_init_table[i].direction == GPIO_OUTPUT) {
+					ret = gpio_direction_output(picasso_E2_gpio_unused_init_table[i].gpio, picasso_E2_gpio_unused_init_table[i].value);
+					if(ret)
+						pr_err("---%s:  GPIO(%d)  init error\n", __func__, picasso_E2_gpio_unused_init_table[i].gpio);
+					else
+						tegra_gpio_enable(picasso_E2_gpio_unused_init_table[i].gpio);
+				}
+				else if (picasso_E2_gpio_unused_init_table[i].direction == GPIO_INPUT) {
+					gpio_direction_input(picasso_E2_gpio_unused_init_table[i].gpio);
+					tegra_gpio_enable(picasso_E2_gpio_unused_init_table[i].gpio);
+				}
+				else
+					pr_err("%s : GPIO neither output nor input \n", __func__);
+			}
+		}
+		printk("====  %s: GPIO unused init OK ====\n", __func__);
+		break;
 	}
 
 	if (acer_sku == BOARD_SKU_WIFI) { // Wifi
@@ -957,35 +1001,73 @@ void gpio_sleep_init(void)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	for (i = 0 ; i < ARRAY_SIZE(gpio_sleep_init_table); i++) {
-		if (gpio_sleep_init_table[i].enabled) {
+	switch(acer_board_type) {
+	case BOARD_PICASSO_2:
+	case BOARD_PICASSO_M:
+	case BOARD_PICASSO_MF:
+		for (i = 0 ; i < ARRAY_SIZE(gpio_sleep_init_table); i++) {
+			if (gpio_sleep_init_table[i].enabled) {
 
-			// get gpio index
-			banks_idx = (gpio_sleep_init_table[i].gpio >> 5) & BANK_MASK;
-			banks_oe_idx = (gpio_sleep_init_table[i].gpio >> 3) & OE_MASK;
-			bit = gpio_sleep_init_table[i].gpio & GPIOBIT_MASK;
+				// get gpio index
+				banks_idx = (gpio_sleep_init_table[i].gpio >> 5) & BANK_MASK;
+				banks_oe_idx = (gpio_sleep_init_table[i].gpio >> 3) & OE_MASK;
+				bit = gpio_sleep_init_table[i].gpio & GPIOBIT_MASK;
 
-			// cnf
-			value = __raw_readl(GPIO_CNF(gpio_sleep_init_table[i].gpio));
-			value |= (0x1 << bit);
-			__raw_writel(value, GPIO_CNF(gpio_sleep_init_table[i].gpio));
-
-			// oe
-			value = __raw_readl(GPIO_OE(gpio_sleep_init_table[i].gpio));
-			if (gpio_sleep_init_table[i].direction == GPIO_OUTPUT)
+				// cnf
+				value = __raw_readl(GPIO_CNF(gpio_sleep_init_table[i].gpio));
 				value |= (0x1 << bit);
-			else
-				value &= ~(0x1 << bit);
-			__raw_writel(value, GPIO_OE(gpio_sleep_init_table[i].gpio));
+				__raw_writel(value, GPIO_CNF(gpio_sleep_init_table[i].gpio));
 
-			// out
-			value = __raw_readl(GPIO_OUT(gpio_sleep_init_table[i].gpio));
-			if (gpio_sleep_init_table[i].value == GPIO_HIGH)
-				value |= (0x1 << bit);
-			else
-				value &= ~(0x1 << bit);
-			__raw_writel(value, GPIO_OUT(gpio_sleep_init_table[i].gpio));
+				// oe
+				value = __raw_readl(GPIO_OE(gpio_sleep_init_table[i].gpio));
+				if (gpio_sleep_init_table[i].direction == GPIO_OUTPUT)
+					value |= (0x1 << bit);
+				else
+					value &= ~(0x1 << bit);
+				__raw_writel(value, GPIO_OE(gpio_sleep_init_table[i].gpio));
+
+				// out
+				value = __raw_readl(GPIO_OUT(gpio_sleep_init_table[i].gpio));
+				if (gpio_sleep_init_table[i].value == GPIO_HIGH)
+					value |= (0x1 << bit);
+				else
+					value &= ~(0x1 << bit);
+				__raw_writel(value, GPIO_OUT(gpio_sleep_init_table[i].gpio));
+			}
 		}
+		break;
+	case BOARD_PICASSO_E2:
+		for (i = 0 ; i < ARRAY_SIZE(picasso_E2_gpio_sleep_init_table); i++) {
+			if (picasso_E2_gpio_sleep_init_table[i].enabled) {
+
+				// get gpio index
+				banks_idx = (picasso_E2_gpio_sleep_init_table[i].gpio >> 5) & BANK_MASK;
+				banks_oe_idx = (picasso_E2_gpio_sleep_init_table[i].gpio >> 3) & OE_MASK;
+				bit = picasso_E2_gpio_sleep_init_table[i].gpio & GPIOBIT_MASK;
+
+				// cnf
+				value = __raw_readl(GPIO_CNF(picasso_E2_gpio_sleep_init_table[i].gpio));
+				value |= (0x1 << bit);
+				__raw_writel(value, GPIO_CNF(picasso_E2_gpio_sleep_init_table[i].gpio));
+
+				// oe
+				value = __raw_readl(GPIO_OE(picasso_E2_gpio_sleep_init_table[i].gpio));
+				if (picasso_E2_gpio_sleep_init_table[i].direction == GPIO_OUTPUT)
+					value |= (0x1 << bit);
+				else
+					value &= ~(0x1 << bit);
+				__raw_writel(value, GPIO_OE(picasso_E2_gpio_sleep_init_table[i].gpio));
+
+				// out
+				value = __raw_readl(GPIO_OUT(picasso_E2_gpio_sleep_init_table[i].gpio));
+				if (picasso_E2_gpio_sleep_init_table[i].value == GPIO_HIGH)
+					value |= (0x1 << bit);
+				else
+					value &= ~(0x1 << bit);
+				__raw_writel(value, GPIO_OUT(picasso_E2_gpio_sleep_init_table[i].gpio));
+			}
+		}
+		break;
 	}
 	local_irq_restore(flags);
 }

@@ -29,6 +29,15 @@
 
 #include <asm/ioctls.h>
 
+#ifdef CONFIG_ACER_RAM_LOG
+#include <linux/ram_log.h>
+#include <linux/ctype.h>
+#include <linux/kernel.h>
+#include <linux/cpu.h>
+#include <linux/misc_cmd.h>
+static volatile unsigned int printk_cpu = UINT_MAX;
+#endif
+
 /*
  * struct logger_log - represents a specific log, such as 'main' or 'radio'
  *
@@ -42,6 +51,9 @@ struct logger_log {
 	wait_queue_head_t	wq;	/* wait queue for readers */
 	struct list_head	readers; /* this log's readers */
 	struct mutex		mutex;	/* mutex protecting buffer */
+#ifdef CONFIG_ACER_RAM_LOG
+	struct ramlog_file_ops ops;
+#endif
 	size_t			w_off;	/* current write head offset */
 	size_t			head;	/* new readers start here */
 	size_t			size;	/* size of the log */
@@ -316,6 +328,132 @@ static ssize_t do_write_log_from_user(struct logger_log *log,
 	return count;
 }
 
+#ifdef CONFIG_ACER_RAM_LOG
+#if defined(CONFIG_ARCH_ACER_T30)
+static long do_read_blmsg_ramlog_sw(void)
+{
+	BootloaderMessage BLMsg;
+	struct file *fp = filp_open(MSC_PATH, O_RDWR, 0);
+	mm_segment_t oldfs;
+	unsigned ramlog_enabled = 0;
+
+	oldfs = get_fs();
+	set_fs(get_ds());
+	if (fp != NULL) {
+		fp->f_op->read(fp, (char*) &BLMsg, sizeof(BootloaderMessage), &fp->f_pos);
+		pr_emerg("%s: read arg [%u] from misc\n", __func__, BLMsg.ramlog_switch);
+		vfs_llseek(fp, 0, 0);
+
+		ramlog_enabled = BLMsg.ramlog_switch;
+	} else {
+		pr_emerg("fp is NULL!\n");
+	}
+	filp_close(fp, 0);
+	set_fs(oldfs);
+	return ramlog_enabled;
+}
+
+static long do_read_blmsg_debug_sw(void)
+{
+	BootloaderMessage BLMsg;
+	struct file *fp = filp_open(MSC_PATH, O_RDWR, 0);
+	mm_segment_t oldfs;
+	unsigned debug_enabled = 0;
+
+	oldfs = get_fs();
+	set_fs(get_ds());
+	if (fp != NULL) {
+		fp->f_op->read(fp, (char*) &BLMsg, sizeof(BootloaderMessage), &fp->f_pos);
+		pr_emerg("%s: read arg [%u] from misc\n", __func__, BLMsg.debug_switch);
+		vfs_llseek(fp, 0, 0);
+
+		debug_enabled = BLMsg.debug_switch;
+	} else {
+		pr_emerg("fp is NULL!\n");
+	}
+	filp_close(fp, 0);
+	set_fs(oldfs);
+	return debug_enabled;
+}
+#endif
+
+static char filter_pri_to_char(int pri)
+{
+	switch (pri) {
+	case ANDROID_LOG_VERBOSE:	return 'V';
+	case ANDROID_LOG_DEBUG:		return 'D';
+	case ANDROID_LOG_INFO:		return 'I';
+	case ANDROID_LOG_WARN:		return 'W';
+	case ANDROID_LOG_ERROR:		return 'E';
+	case ANDROID_LOG_FATAL:		return 'F';
+	case ANDROID_LOG_SILENT:	return 'S';
+	case ANDROID_LOG_DEFAULT:
+	case ANDROID_LOG_UNKNOWN:
+	default:			return '?';
+	}
+}
+
+static char *get_printk_time(void)
+{
+	char tbuf[50];
+	unsigned tlen;
+	unsigned long long t;
+	unsigned long nanosec_rem;
+	int this_cpu;
+
+	this_cpu = smp_processor_id();
+	printk_cpu = this_cpu;
+
+	/* Add the current time stamp */
+	t = cpu_clock(printk_cpu);
+	nanosec_rem = do_div(t, 1000000000);
+	tlen = sprintf(tbuf, "[%5lu.%06lu] ",
+			(unsigned long) t,
+			nanosec_rem / 1000);
+	return tbuf;
+}
+
+static void do_write_log_to_ram(struct logger_log *log,
+						struct logger_entry *header,
+						size_t nr_segs_cnt, size_t count)
+{
+	char buf[64];
+	char pri;
+	char *tbuf;
+	size_t len;
+	size_t w_off;
+	size_t i = log->ops.index;
+
+	w_off = logger_offset(log->w_off - count);
+
+	if (!nr_segs_cnt) {
+		pri = filter_pri_to_char(*(log->buffer + w_off));
+		tbuf = get_printk_time();
+		strcpy(buf, tbuf);
+		snprintf(buf + strlen(tbuf), sizeof(buf), "%c/", pri);
+		log->ops.write(buf, strlen(buf), i);
+		return;
+	}
+
+	len = min(count, log->size - w_off);
+
+	if (len)
+		/* writing 'len-1' chars instead of 'len' is to remove
+		 * redundant 'space' at the end of the string
+		 */
+		log->ops.write(log->buffer + w_off, len - 1, i);
+	if (count != len)
+		log->ops.write(log->buffer, count - len, i);
+
+	if (nr_segs_cnt == 1) {
+		snprintf(buf, sizeof(buf), "(%d/%d): ", header->pid, header->tid);
+		log->ops.write(buf, strlen(buf), i);
+	} else {
+		log->ops.write("\n", (unsigned int)1, i);
+	}
+}
+#endif
+
 /*
  * logger_aio_write - our write method, implementing support for write(),
  * writev(), and aio_write(). Writes are our fast path, and we try to optimize
@@ -329,6 +467,9 @@ ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	struct logger_entry header;
 	struct timespec now;
 	ssize_t ret = 0;
+#ifdef CONFIG_ACER_RAM_LOG
+	size_t nr_segs_cnt = 0;
+#endif
 
 	now = current_kernel_time();
 
@@ -363,6 +504,11 @@ ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 
 		/* write out this segment's payload */
 		nr = do_write_log_from_user(log, iov->iov_base, len);
+#ifdef CONFIG_ACER_RAM_LOG
+		if (log->ops.write)
+			do_write_log_to_ram(log, &header, nr_segs_cnt, len);
+		nr_segs_cnt++;
+#endif
 		if (unlikely(nr < 0)) {
 			log->w_off = orig;
 			mutex_unlock(&log->mutex);
@@ -514,6 +660,20 @@ static long logger_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		log->head = log->w_off;
 		ret = 0;
 		break;
+#ifdef CONFIG_ACER_RAM_LOG
+	case LOGGER_SET_CONSOLE:
+		ret = console_suspend_enabled = (int)arg;
+		break;
+	case LOGGER_GET_CONSOLE:
+		ret = console_suspend_enabled;
+		break;
+	case LOGGER_GET_BLMSG_RAMLOG:
+		ret = do_read_blmsg_ramlog_sw();
+		break;
+	case LOGGER_GET_BLMSG_DEBUG:
+		ret = do_read_blmsg_debug_sw();
+		break;
+#endif
 	}
 
 	mutex_unlock(&log->mutex);
@@ -595,6 +755,10 @@ static int __init logger_init(void)
 	int ret;
 
 	ret = init_log(&log_main);
+#ifdef CONFIG_ACER_RAM_LOG
+	log_main.ops.index = LOGCAT_MAIN_SYSTEM_LOG;
+	ramlog_register(&log_main.ops);
+#endif
 	if (unlikely(ret))
 		goto out;
 
@@ -603,10 +767,18 @@ static int __init logger_init(void)
 		goto out;
 
 	ret = init_log(&log_radio);
+#ifdef CONFIG_ACER_RAM_LOG
+	log_radio.ops.index = LOGCAT_RADIO_LOG;
+	ramlog_register(&log_radio.ops);
+#endif
 	if (unlikely(ret))
 		goto out;
 
 	ret = init_log(&log_system);
+#ifdef CONFIG_ACER_RAM_LOG
+	log_system.ops.index = LOGCAT_MAIN_SYSTEM_LOG;
+	ramlog_register(&log_system.ops);
+#endif
 	if (unlikely(ret))
 		goto out;
 

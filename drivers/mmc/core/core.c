@@ -1568,7 +1568,7 @@ out:
  * Caller must claim host before calling this function.
  */
 int mmc_erase(struct mmc_card *card, unsigned int from, unsigned int nr,
-	      unsigned int arg)
+unsigned int arg)
 {
 	return -EOPNOTSUPP;
 }

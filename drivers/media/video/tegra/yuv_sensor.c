@@ -30,7 +30,7 @@
 #include <media/yuv_sensor.h>
 #include <media/tegra_camera.h>
 
-#if defined(CONFIG_MACH_PICASSO) || defined(CONFIG_MACH_MAYA)
+#if defined(CONFIG_MACH_PICASSO) || defined(CONFIG_MACH_MAYA) || defined(CONFIG_MACH_PICASSO_E2)
 #include "yuv_init_tab_picasso.h"
 #endif
 #if defined(CONFIG_MACH_VANGOGH)
@@ -305,28 +305,24 @@ static long sensor_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			pr_info("yuv %s: coloreffect %d\n", __func__, coloreffect);
 
 			switch(coloreffect) {
-				case YUV_ColorEffect_None:
-					err = sensor_write_table(info->i2c_client, ColorEffect_None);
-					break;
-
 				case YUV_ColorEffect_Mono:
 					err = sensor_write_table(info->i2c_client, ColorEffect_Mono);
-					break;
-
-				case YUV_ColorEffect_Sepia:
-					err = sensor_write_table(info->i2c_client, ColorEffect_Sepia);
 					break;
 
 				case YUV_ColorEffect_Negative:
 					err = sensor_write_table(info->i2c_client, ColorEffect_Negative);
 					break;
 
-				case YUV_ColorEffect_Solarize:
-					err = sensor_write_table(info->i2c_client, ColorEffect_Solarize);
+				case YUV_ColorEffect_None:
+					err = sensor_write_table(info->i2c_client, ColorEffect_None);
 					break;
 
-				case YUV_ColorEffect_Posterize:
-					err = sensor_write_table(info->i2c_client, ColorEffect_Posterize);
+				case YUV_ColorEffect_Sepia:
+					err = sensor_write_table(info->i2c_client, ColorEffect_Sepia);
+					break;
+
+				case YUV_ColorEffect_Solarize:
+					err = sensor_write_table(info->i2c_client, ColorEffect_Solarize);
 					break;
 
 				default:
@@ -404,24 +400,24 @@ static long sensor_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			pr_info("yuv %s: exposure %d\n", __func__, exposure);
 
 			switch(exposure) {
-				case YUV_Exposure_0:
-					err = sensor_write_table(info->i2c_client, Exposure_0);
+				case YUV_Exposure_Zero:
+					err = sensor_write_table(info->i2c_client, Exposure_Zero);
 					break;
 
-				case YUV_Exposure_1:
-					err = sensor_write_table(info->i2c_client, Exposure_1);
+				case YUV_Exposure_Plus_One:
+					err = sensor_write_table(info->i2c_client, Exposure_Plus_One);
 					break;
 
-				case YUV_Exposure_2:
-					err = sensor_write_table(info->i2c_client, Exposure_2);
+				case YUV_Exposure_Plus_Two:
+					err = sensor_write_table(info->i2c_client, Exposure_Plus_Two);
 					break;
 
-				case YUV_Exposure_Negative_1:
-					err = sensor_write_table(info->i2c_client, Exposure_Negative_1);
+				case YUV_Exposure_Minus_One:
+					err = sensor_write_table(info->i2c_client, Exposure_Minus_One);
 					break;
 
-				case YUV_Exposure_Negative_2:
-					err = sensor_write_table(info->i2c_client, Exposure_Negative_2);
+				case YUV_Exposure_Minus_Two:
+					err = sensor_write_table(info->i2c_client, Exposure_Minus_Two);
 					break;
 
 				default:
@@ -473,46 +469,40 @@ static struct miscdevice sensor_device = {
 	.fops = &sensor_fileops,
 };
 
-static int yuv_initialize(struct sensor_info *info){
-	int err;
+static struct kobject *camera_dev_info_kobj;
 
-	struct tegra_camera_clk_info clk_info;
+static ssize_t vendor_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Aptina\n");
+}
 
-	extern void extern_tegra_camera_enable_vi(void);
-	extern void extern_tegra_camera_disable_vi(void);
-	extern void extern_tegra_camera_clk_set_rate(struct tegra_camera_clk_info *);
+static ssize_t sensor_id_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "MT9D115\n");
+}
 
-	pr_info("%s ++\n", __func__);
-
-	// set MCLK to 24MHz
-	clk_info.id = TEGRA_CAMERA_MODULE_VI;
-	clk_info.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
-	clk_info.rate = 24000000;
-	extern_tegra_camera_clk_set_rate(&clk_info);
-
-	// turn on MCLK and pull down PWDN pin
-	extern_tegra_camera_enable_vi();
-	if (info->pdata && info->pdata->power_on)
-		info->pdata->power_on();
-
-	err = sensor_write_table(info->i2c_client, mode_table[SENSOR_MODE_INIT]);
-	if (err) {
-		pr_err("set mode write table fail\n");
-		return err;
+#define setting_attr(_name) \
+	static struct kobj_attribute _name##_attr = { \
+		.attr = { \
+			.name = __stringify(_name), \
+			.mode = 0644, \
+		}, \
+		.show = _name##_show, \
 	}
 
-	poll_current_state(3);
+setting_attr(vendor);
+setting_attr(sensor_id);
 
-	// pull high PWDN pin and turn off MCLK
-	if (info->pdata && info->pdata->power_off)
-		info->pdata->power_off();
-	extern_tegra_camera_disable_vi();
+static struct attribute *group[] = {
+	&vendor_attr.attr,
+	&sensor_id_attr.attr,
+	NULL,
+};
 
-	info->mode = SENSOR_MODE_800x600;
-
-	pr_info("%s --\n", __func__);
-	return 0;
-}
+static struct attribute_group attr_group =
+{
+	.attrs = group,
+};
 
 static int sensor_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -540,9 +530,14 @@ static int sensor_probe(struct i2c_client *client, const struct i2c_device_id *i
 	info->i2c_client = client;
 	info->mode = 0;
 
-	if (yuv_initialize(info) != 0) {
-		kfree(info);
-		return -ENODEV;
+	camera_dev_info_kobj = kobject_create_and_add("dev-info_front-camera", NULL);
+	if (camera_dev_info_kobj == NULL) {
+		pr_err("%s: kobject_create_and_add failed\n", __FUNCTION__);
+	}
+	err = sysfs_create_group(camera_dev_info_kobj, &attr_group);
+
+	if (err) {
+		pr_err("%s: sysfs_create_group failed\n", __FUNCTION__);
 	}
 
 	i2c_set_clientdata(client, info);

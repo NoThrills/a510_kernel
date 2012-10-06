@@ -45,6 +45,7 @@
 #include <linux/user_namespace.h>
 
 #include <linux/kmsg_dump.h>
+#include <linux/misc_cmd.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -319,32 +320,11 @@ void kernel_restart_prepare(char *cmd)
 	syscore_shutdown();
 }
 
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
-#define MSC_PATH "/dev/block/mmcblk0p5"
-
-#if defined(CONFIG_ARCH_ACER_T20)
-#define USE_OLD_MISC_CMD 1
-#endif
-
-#ifdef USE_OLD_MISC_CMD
-typedef struct{
-	unsigned char command[12];
-	unsigned char debug_switch;
-	unsigned char display_debug;
-	unsigned char size;
-} BootloaderMessage;
-#else
-typedef struct{
-	char command[32];
-	char status[32];
-	unsigned debug_switch;
-} BootloaderMessage;
-#endif
-
 /**
  *	misc_cmd - write data to misc partition
  *	@cmd: pointer to buffer containing the data need to be wrote to misc partition
  */
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 void misc_cmd(char *cmd)
 {
 	BootloaderMessage BLMsg;
@@ -368,7 +348,7 @@ void misc_cmd(char *cmd)
 			strcpy(BLMsg.command, "FastbootMode");
 		}else if (!strncmp(cmd, "debug_on", 8)) {
 			BLMsg.debug_switch = 1;
-		} else if (!strncmp(cmd, "debug_off", 9)) {
+		}else if (!strncmp(cmd, "debug_off", 9)) {
 			BLMsg.debug_switch = 0;
 		}
 #else
@@ -376,9 +356,15 @@ void misc_cmd(char *cmd)
 			strcpy(BLMsg.command, "boot-recovery");
 		}else if (!strncmp(cmd, "bootloader", 10)) {
 			strcpy(BLMsg.command, "boot-bootloader");
+#ifdef CONFIG_ACER_RAM_LOG
+		}else if (!strncmp(cmd, "ramlog_on", 9)) {
+			BLMsg.ramlog_switch = 1;
+		}else if (!strncmp(cmd, "ramlog_off", 10)) {
+			BLMsg.ramlog_switch = 0;
+#endif
 		}else if (!strncmp(cmd, "debug_on", 8)) {
 			BLMsg.debug_switch = 1;
-		} else if (!strncmp(cmd, "debug_off", 9)) {
+		}else if (!strncmp(cmd, "debug_off", 9)) {
 			BLMsg.debug_switch = 0;
 		}
 #endif

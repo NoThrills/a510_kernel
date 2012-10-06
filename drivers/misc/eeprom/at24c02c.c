@@ -367,7 +367,7 @@ int Get_IMEIwithBarcode(char * buf)
 		memcpy(buf, tmp, retval);
 		memset(tmp, 'f', retval);
 
-		if (!strncmp(buf, tmp, retval));
+		if (!strncmp(buf, tmp, retval))
 			memset(buf, '0', retval);
 
 		kfree(tmp);
@@ -591,7 +591,7 @@ static ssize_t IMEIwithBarcode_show(struct kobject *kobj, struct kobj_attribute 
 		memcpy(buf, tmp, retval);
 		memset(tmp, 'f', retval);
 
-		if (!strncmp(buf, tmp, retval));
+		if (!strncmp(buf, tmp, retval))
 			memset(buf, '0', retval);
 
 		kfree(tmp);
@@ -767,6 +767,7 @@ static struct miscdevice at24_device = {
 };
 
 static struct kobject *eeprom_debug_kobj;
+static struct kobject *eeprom_dev_info_kobj;
 
 #define debug_attr(_name, _mode) \
 	static struct kobj_attribute _name##_attr = { \
@@ -915,7 +916,17 @@ static int at24_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	{
 		dev_err(&client->dev,"%s: subsystem_register failed\n", __FUNCTION__);
 	}
+	eeprom_dev_info_kobj = kobject_create_and_add("dev-info_eeprom", NULL);
+	if (eeprom_dev_info_kobj == NULL)
+	{
+		dev_err(&client->dev,"%s: subsystem_register failed\n", __FUNCTION__);
+	}
 	err = sysfs_create_group(eeprom_debug_kobj, &attr_group);
+	if(err)
+	{
+		dev_err(&client->dev,"%s: sysfs_create_group failed, %d\n", __FUNCTION__, __LINE__);
+	}
+	err = sysfs_create_group(eeprom_dev_info_kobj, &attr_group);
 	if(err)
 	{
 		dev_err(&client->dev,"%s: sysfs_create_group failed, %d\n", __FUNCTION__, __LINE__);

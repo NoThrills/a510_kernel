@@ -765,7 +765,14 @@ static void tegra_se_process_new_req(struct crypto_async_request *async_req)
 	struct tegra_se_aes_context *aes_ctx =
 			crypto_ablkcipher_ctx(crypto_ablkcipher_reqtfm(req));
 	int ret = 0;
-
+#if defined(CONFIG_ARCH_ACER_T30)
+	/*The NV se can process well when total bytes big than source size
+	    we drop this packages to prevent it wrong*/
+	if(req->nbytes > req->src->length) {
+		dev_err(se_dev->dev, "total bytes 0x%x, 0x%x", req->nbytes, req->src->length);
+		goto end;
+	}
+#endif
 	/* take access to the hw */
 	mutex_lock(&se_hw_lock);
 
@@ -789,6 +796,9 @@ static void tegra_se_process_new_req(struct crypto_async_request *async_req)
 	tegra_se_dequeue_complete_req(se_dev, req);
 
 	mutex_unlock(&se_hw_lock);
+#if defined(CONFIG_ARCH_ACER_T30)
+end:
+#endif
 	req->base.complete(&req->base, ret);
 }
 
@@ -1073,11 +1083,13 @@ static int tegra_se_rng_get_random(struct crypto_rng *tfm, u8 *rdata, u32 dlen)
 	struct tegra_se_ll *src_ll, *dst_ll;
 	unsigned char *dt_buf = (unsigned char *)rng_ctx->dt_buf;
 	u8 *rdata_addr;
-	int ret = 0, i, j, num_blocks;
+	int ret = 0, i, j, num_blocks, data_len = 0;
 
-	if (dlen < TEGRA_SE_RNG_DT_SIZE)
-		return -EINVAL;
 	num_blocks = (dlen / TEGRA_SE_RNG_DT_SIZE);
+
+	data_len = (dlen % TEGRA_SE_RNG_DT_SIZE);
+	if (data_len == 0)
+		num_blocks = num_blocks - 1;
 
 	/* take access to the hw */
 	mutex_lock(&se_hw_lock);
@@ -1096,14 +1108,19 @@ static int tegra_se_rng_get_random(struct crypto_rng *tfm, u8 *rdata, u32 dlen)
 		TEGRA_SE_KEY_128_SIZE);
 	tegra_se_config_crypto(se_dev, SE_AES_OP_MODE_RNG_X931, true,
 				rng_ctx->slot->slot_num, rng_ctx->use_org_iv);
-	for (j = 0; j < num_blocks; j++) {
+	for (j = 0; j <= num_blocks; j++) {
 		ret = tegra_se_start_operation(se_dev,
 				TEGRA_SE_RNG_DT_SIZE, false);
 
 		if (!ret) {
 			rdata_addr = (rdata + (j * TEGRA_SE_RNG_DT_SIZE));
-			memcpy(rdata_addr,
-				rng_ctx->rng_buf, TEGRA_SE_RNG_DT_SIZE);
+
+			if (data_len && num_blocks == j) {
+				memcpy(rdata_addr, rng_ctx->rng_buf, data_len);
+			} else {
+				memcpy(rdata_addr,
+					rng_ctx->rng_buf, TEGRA_SE_RNG_DT_SIZE);
+			}
 
 			/* update DT vector */
 			for (i = TEGRA_SE_RNG_DT_SIZE - 1; i >= 0; i--) {

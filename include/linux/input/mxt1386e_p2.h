@@ -16,10 +16,10 @@ extern int acer_board_type;
 #define MXT_MAX_TOUCH_SIZE                    255
 
 #define Firmware_Number                       4099
-#define ConfigChecksum                        1237707 /* 12E2CB */
+#define ConfigChecksum                        4927248 /* 4B2F10 */
 #define Chip_Vendor                           "AT"
 #define Reseved_Chip_Vendor                   "0"
-#define ConfigVersion                         1118468 /* 111104 */
+#define ConfigVersion                         1180434 /* 120312 */
 #define Reseved_Firmware_Info                 0
 #define Reseved_ConfigVersion                 0
 #define Reservedinfo                          0
@@ -41,13 +41,13 @@ enum {
 u8 T07OBJ[3]  = {  50, 255,  10};
 
 /* GEN_ACQUISITIONCONFIG_T8 INSTANCE 0 */
-u8 T08OBJ[10] = {  30,  10,  10,   0,   0,   0,   5,  10,  15,   0};
+u8 T08OBJ[10] = {  26,   0,  10,  10,   0,   0,   5,  17,  15,   0};
 
 /* TOUCH_MULTITOUCHSCREEN_T9 INSTATNCE 0 */
-u8 T09OBJ[35] = { 131,   0,   0,  30,  42,   0,  16,  60,   2,   5,
-                   10,   5,   2,   0,  10,  20,  20,  10, 175,   4,
+u8 T09OBJ[35] = { 131,   0,   0,  30,  42,   0,  16,  70,   4,   5,
+                   10,   5,   2,   0,  10,  15,  15,  10, 175,   4,
                   127,   7,   0,   0,   0,   0,   0,   0,  64,   0,
-                   10,  15,   0,   0,   0};
+                   15,  25,   0,   0,   0};
 
 /* SPT_COMMSCONFIG_T18 INSTANCE 0 */
 u8 T18OBJ[2]  = {   0,   0};
@@ -57,7 +57,7 @@ u8 T24OBJ[19] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                     0,   0,   0,   0,   0,   0,   0,   0,   0};
 
 /* SPT_SELFTEST_T25 INSTATNCE 0 */
-u8 T25OBJ[6]  = {   3,   0,  60, 115, 156,  99};
+u8 T25OBJ[6]  = {   0,   0,  65,  70,  75,   0};
 
 /* PROCI_TWOTOUCHGESTUREPROCESSOR_T27 INSTATNCE 0 */
 u8 T27OBJ[7]  = {   0,   0,   0,   0,   0,   0,   0};
@@ -75,13 +75,13 @@ u8 T38OBJ[64] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 u8 T40OBJ[5]  = {   0,   0,   0,   0,   0};
 
 /* PROCI_TOUCHSUPPRESSION_T42 INSTATNCE 0 */
-u8 T42OBJ[10] = {  35,  15,  20,  45,   0,   3,   0,   0,  11,   3};
+u8 T42OBJ[10] = {  33,  15,  55,  55,   0,   3,   0,   0,  10,   3};
 
 /* SPT_DIGITIZER_T43 INSTANCE 0 */
 u8 T43OBJ[7]  = {   0,   0,   0,   0,   0,   0,   0};
 
 /* SPT_CTECONFIG_T46 INSTANCE 0 */
-u8 T46OBJ[9]  = {  68,   0,   8,  16,   0,   0,   1,   0,   0};
+u8 T46OBJ[9]  = {  64,   0,  16,  32,   0,   0,   1,   0,   0};
 
 /* SPT_CTECONFIG_T46 INSTANCE 0 */
 u8 T46OBJ_0[9]= {   4,   0,   8,  16,   0,   0,   1,   0,   0};
@@ -90,29 +90,46 @@ u8 T46OBJ_0[9]= {   4,   0,   8,  16,   0,   0,   1,   0,   0};
 u8 T47OBJ[10] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0};
 
 /* PROCG_NOISESUPPRESSION_T48 INSTATNCE 0 */
-u8 T48OBJ[54] = {   1, 192, 194,   0,   0,   0,   0,   0,   0,   0,
-                   16,  36,   0,   6,   6,   0,   0,  48,   4,  64,
-                   10,   0,  20,   0,   0,   0,   0,   0,   0,   0,
+u8 T48OBJ[54] = {   1, 128,   2,   0,   0,   0,   0,   0,   0,   0,
+                   16,  55,   0,  10,   0,   0,   0,  63,   0,   0,
+                   10,   0,  20,   0,   0,   0,   0,  16,   0,   0,
                     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
                     0,   0,   0,   0};
 
 /* PROCI_SHIELDLESS_T56 INSTATNCE 0  */
-u8 T56OBJ[43] = {   1,   0,   1,  51,  24,  24,  24,  24,  24,  24,
-                   24,  24,  24,  24,  24,  24,  24,  24,  24,  24,
-                   24,  24,  24,  24,  24,  24,  20,  20,  20,  20,
-                   20,  20,  20,  24,   1,   1,   1,   0,   0,   1,
-                    2,   6,   4};
+u8 T56OBJ[43] = {   1,   0,   1,  48,  21,  21,  21,  21,  21,  21,
+                   21,  21,  21,  21,  21,  21,  21,  21,  21,  21,
+                   21,  21,  21,  21,  21,  21,  21,  21,  21,  21,
+                   21,  21,  21,  21,   0,   0,   0,   0,   0,   1,
+                    1,   6,   6};
 
 struct sensitivity_mapping {
 	int symbol;
-	int value;
+	u8 value;
+	u32 checksum_config;
 };
 
-static struct sensitivity_mapping sensitivity_table[] = {
-	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           50},
-	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         60},
-	{TOUCH_SENSITIVITY_SYMBOL_LOW,            70},
+struct sensitvity_ver_mapping {
+	int Check_ConfigVersion;
+	struct sensitivity_mapping *sens_ver_mapping;
+};
+
+static struct sensitivity_mapping v01_sensitivity_table[] = {
+	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           50,   14869954},
+	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         60,    1237707},
+	{TOUCH_SENSITIVITY_SYMBOL_LOW,            70,    4382708},
+};
+
+static struct sensitivity_mapping v02_sensitivity_table[] = {
+	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           65,   15936665},
+	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         70,    4927248},
+	{TOUCH_SENSITIVITY_SYMBOL_LOW,            75,   10693017},
+};
+
+static struct sensitvity_ver_mapping sensitivity_ver_table[] = {
+	{ 1118468, v01_sensitivity_table},
+	{ 1180434, v02_sensitivity_table},
 };
 
 #endif /* _LINUX_MXT1386E_P2_H */

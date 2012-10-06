@@ -67,6 +67,15 @@ struct mpu_private_data {
 	int pid;
 };
 
+static u8 G_vendor_info = 0;
+static u8 Gyro_vendor_info = 0;
+static u8 Gyro_chip_info = 0;
+static u8 Compass_vendor_info = 0;
+static u8 Compass_chip_info = 0;
+static struct kobject *gsensor_dev_info_kobj;
+static struct kobject *gyro_dev_info_kobj;
+static struct kobject *compass_dev_info_kobj;
+
 static void mpu_pm_timeout(u_long data)
 {
 	struct mpu_private_data *mpu = (struct mpu_private_data *)data;
@@ -887,17 +896,154 @@ static unsigned short normal_i2c[] = { I2C_CLIENT_END };
 I2C_CLIENT_INSMOD;
 #endif
 
+static ssize_t g_vendor_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	if (G_vendor_info != 0)
+		s += sprintf(s, "0x%02x\n", G_vendor_info);
+	else
+		s += sprintf(s, "%s\n", "unknow");
+	return (s - buf);
+}
+
+static ssize_t gyro_vendor_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	if (Gyro_vendor_info != 0)
+		s += sprintf(s, "0x%02x\n", Gyro_vendor_info);
+	else
+		s += sprintf(s, "%s\n", "unknow");
+	return (s - buf);
+}
+
+static ssize_t compass_vendor_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	if (Compass_vendor_info != 0)
+		s += sprintf(s, "0x%02x\n", Compass_vendor_info);
+	else
+		s += sprintf(s, "%s\n", "unknow");
+	return (s - buf);
+}
+
+static ssize_t gyro_chip_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	if (Gyro_chip_info != 0)
+		s += sprintf(s, "0x%02x\n", Gyro_chip_info);
+	else
+		s += sprintf(s, "%s\n", "unknow");
+	return (s - buf);
+}
+
+static ssize_t compass_chip_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	if (Compass_chip_info != 0)
+		s += sprintf(s, "0x%02x\n", Compass_chip_info);
+	else
+		s += sprintf(s, "%s\n", "unknow");
+	return (s - buf);
+}
+
+static struct kobj_attribute gsensor_vendor_attr = {
+	.attr = {
+			.name = "vendor",
+			.mode = 0644,
+		},
+	.show = g_vendor_show,
+};
+
+static struct kobj_attribute gyro_vendor_attr = {
+	.attr = {
+			.name = "vendor",
+			.mode = 0644,
+		},
+	.show = gyro_vendor_show,
+};
+
+static struct kobj_attribute gyro_chip_attr = {
+	.attr = {
+			.name = "chip",
+			.mode = 0644,
+		},
+	.show = gyro_chip_show,
+};
+
+static struct kobj_attribute compass_vendor_attr = {
+	.attr = {
+			.name = "vendor",
+			.mode = 0644,
+		},
+	.show = compass_vendor_show,
+};
+
+static struct kobj_attribute compass_chip_attr = {
+	.attr = {
+			.name = "chip",
+			.mode = 0644,
+		},
+	.show = compass_chip_show,
+};
+
+static struct attribute * g_group[] = {
+	&gsensor_vendor_attr.attr,
+	NULL,
+};
+
+static struct attribute * gyro_group[] = {
+	&gyro_vendor_attr.attr,
+	&gyro_chip_attr.attr,
+	NULL,
+};
+
+static struct attribute * compass_group[] = {
+	&compass_vendor_attr.attr,
+	&compass_chip_attr.attr,
+	NULL,
+};
+
+static struct attribute_group g_attr_group =
+{
+	.attrs = g_group,
+};
+
+static struct attribute_group gyro_attr_group =
+{
+	.attrs = gyro_group,
+};
+
+static struct attribute_group compass_attr_group =
+{
+	.attrs = compass_group,
+};
+
 int mpu_probe(struct i2c_client *client, const struct i2c_device_id *devid)
 {
 	struct mpu_platform_data *pdata;
 	struct mpu_private_data *mpu;
 	struct mldl_cfg *mldl_cfg;
 	int res = 0;
+	u8 regs[1] = {0};
+	struct i2c_adapter *gyro_adapter = NULL;
 	struct i2c_adapter *accel_adapter = NULL;
 	struct i2c_adapter *compass_adapter = NULL;
 	struct i2c_adapter *pressure_adapter = NULL;
 
 	dev_info(&client->adapter->dev, "%s\n", __func__);
+
+	gyro_adapter = client->adapter;
+	res = inv_serial_read(gyro_adapter, 0x68, 0x00, 1, regs);
+	if (res == 0)
+		Gyro_vendor_info = regs[0];
+	else
+		printk(KERN_INFO"Read Gyro who am i failed\n");
+
+	res = inv_serial_read(gyro_adapter, 0x68, 0x01, 1, regs);
+	if (res == 0)
+		Gyro_chip_info = regs[0];
+	else
+		printk(KERN_INFO"Read Gyro product id failed\n");
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		res = -ENODEV;
@@ -1052,6 +1198,51 @@ int mpu_probe(struct i2c_client *client, const struct i2c_device_id *devid)
 	} else {
 		dev_WARN(&client->adapter->dev,
 			 "Missing %s IRQ\n", MPU_NAME);
+	}
+
+	res = inv_serial_read(accel_adapter, 0x0f, 0x0f, 1, regs);
+	if (res == 0)
+		G_vendor_info = regs[0];
+	else
+		printk(KERN_INFO"Read Gsensor who am i failed\n");
+
+	res = inv_serial_read(compass_adapter, 0x0c, 0x00, 1, regs);
+	if (res == 0)
+		Compass_vendor_info = regs[0];
+	else
+		printk(KERN_INFO"Read Compass who am i failed\n");
+
+	res = inv_serial_read(compass_adapter, 0x0c, 0x01, 1, regs);
+	if (res == 0)
+		Compass_chip_info = regs[0];
+	else
+		printk(KERN_INFO"Read Compass product id failed\n");
+
+	gsensor_dev_info_kobj = kobject_create_and_add("dev_info_g-sensor", NULL);
+	if (gsensor_dev_info_kobj == NULL) {
+		printk(KERN_INFO"dev_info_g-sensor: Create kobject failed\n");
+	} else {
+		res = sysfs_create_group(gsensor_dev_info_kobj, &g_attr_group);
+		if (res)
+			printk(KERN_INFO"dev_info_g-sensor: Create g_attr_group failed\n");
+	}
+
+	gyro_dev_info_kobj = kobject_create_and_add("dev_info_gyro-sensor", NULL);
+	if (gyro_dev_info_kobj == NULL) {
+		printk(KERN_INFO"dev_info_gyro-sensor: Create kobject failed\n");
+	} else {
+		res = sysfs_create_group(gyro_dev_info_kobj, &gyro_attr_group);
+		if (res)
+			printk(KERN_INFO"dev_info_gyro-sensor: Create gyro_attr_group failed\n");
+	}
+
+	compass_dev_info_kobj = kobject_create_and_add("dev_info_e-compass", NULL);
+	if (compass_dev_info_kobj == NULL) {
+		printk(KERN_INFO"dev_info_e-compass: Create kobject failed\n");
+	} else {
+		res = sysfs_create_group(compass_dev_info_kobj, &compass_attr_group);
+		if (res)
+			printk(KERN_INFO"dev_info_e-compass: Create compass_attr_group failed\n");
 	}
 
 	return res;

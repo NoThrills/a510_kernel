@@ -28,12 +28,19 @@
 #include <mach/thermal.h>
 #include <mach/edp.h>
 #include <linux/slab.h>
+#include <mach/gpio.h>
 
 #include "clock.h"
 #include "cpu-tegra.h"
 #include "dvfs.h"
+#include "gpio-names.h"
+#include "board-acer-t30.h"
 
 #define MAX_ZONES (16)
+#define BATT_LEARN	TEGRA_GPIO_PX6
+
+extern int acer_board_type;
+bool throttle_start;
 
 struct tegra_thermal {
 	struct tegra_thermal_device *device;
@@ -161,6 +168,12 @@ static void tegra_therm_throttle(bool enable)
 		/* due to call by the same mutex will cause throttle hang, remove it here */
 		pr_info("%s: Tegra thermal throttling begins!\n", __func__);
 		tegra_throttling_enable(enable);
+
+		/* Stop charging when throttling starts */
+		if(acer_board_type == BOARD_PICASSO_MF){
+			gpio_direction_output(BATT_LEARN, 1);
+			throttle_start = true;
+		}
 		throttle_enb = enable;
 	}
 }

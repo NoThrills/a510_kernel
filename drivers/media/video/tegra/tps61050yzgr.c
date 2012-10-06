@@ -145,8 +145,8 @@ void tps61050_turn_on_torch(void)
 {
 	pr_info("%s\n", __func__);
 
-	// torch only mode, 100mA
-	tps61050_write_reg(info->i2c_client, 0x00, 0x43);
+	// torch only mode, 200mA
+	tps61050_write_reg(info->i2c_client, 0x00, 0x45);
 }
 
 void tps61050_turn_off_torch(void)
@@ -163,8 +163,8 @@ void tps61050_turn_on_flash(void)
 	// set STIM to 11111b, Timer = STIM x 32.8ms = 1.02s
 	tps61050_write_reg(info->i2c_client, 0x03, 0xDF);
 
-	// torch and flash modes, START FLASH, 900mA
-	tps61050_write_reg(info->i2c_client, 0x01, 0x8E);
+	// torch and flash modes, START FLASH, 1200mA
+	tps61050_write_reg(info->i2c_client, 0x01, 0x8F);
 }
 
 void tps61050_turn_off_flash(void)

@@ -57,7 +57,11 @@ static int acer_backlight_init(struct device *dev)
 static void acer_backlight_exit(struct device *dev)
 {
 	gpio_set_value(BL_ENABLE, 0);
-	msleep(200);
+	if (acer_board_type == BOARD_PICASSO_E2) {
+		msleep(100);
+	} else {
+		msleep(200);
+	}
 }
 
 static int acer_backlight_notify(struct device *unused, int brightness)
@@ -68,8 +72,18 @@ static int acer_backlight_notify(struct device *unused, int brightness)
 	if (ori_brightness != !!brightness) {
 		if (!ori_brightness){
 			cancel_delayed_work_sync(&bl_en_gpio);
+#if defined(CONFIG_MACH_PICASSO_E2)
+			schedule_delayed_work(&bl_en_gpio,msecs_to_jiffies(150));
+#else
 			schedule_delayed_work(&bl_en_gpio,msecs_to_jiffies(220));
+#endif
 		}
+#if defined(CONFIG_MACH_PICASSO_E2)
+		if (ori_brightness){
+			cancel_delayed_work_sync(&bl_en_gpio);
+			gpio_set_value(BL_ENABLE, 0);
+		}
+#endif
 	}
 
 	ori_brightness = !!brightness;
@@ -231,7 +245,11 @@ static struct tegra_dc_sd_settings acer_sd_settings = {
 	.use_vid_luma = true,
 	/* Default video coefficients */
 	.coeff = {5, 9, 2},
+#if defined(CONFIG_MACH_PICASSO_E2)
+	.fc = {30, 24},
+#else
 	.fc = {0, 0},
+#endif
 	/* Immediate backlight changes */
 	.blp = {1024, 255},
 	/* Gammas: R: 2.2 G: 2.2 B: 2.2 */
@@ -349,6 +367,8 @@ static struct tegra_dc_out acer_p2_disp1_out = {
 	.n_modes        = ARRAY_SIZE(acer_p2_panel_modes),
 	.enable         = acer_panel_enable,
 	.disable        = acer_panel_disable,
+	.height         = 136,
+	.width          = 217,
 };
 
 static struct tegra_dc_platform_data acer_p2_disp1_pdata = {
@@ -406,6 +426,8 @@ static struct tegra_dc_out acer_pm_disp1_out = {
 	.n_modes        = ARRAY_SIZE(acer_pm_panel_modes),
 	.enable         = acer_panel_enable,
 	.disable        = acer_panel_disable,
+	.height         = 136,
+	.width          = 217,
 };
 
 static struct tegra_dc_platform_data acer_pm_disp1_pdata = {
@@ -620,7 +642,7 @@ int __init acer_panel_init(void)
 			ARRAY_SIZE(acer_gfx_devices));
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
-	if (acer_board_type == BOARD_PICASSO_M){
+	if ((acer_board_type == BOARD_PICASSO_M) || (acer_board_type == BOARD_PICASSO_E2)) {
 		res = nvhost_get_resource_byname(&acer_pm_disp1_device,
 				IORESOURCE_MEM, "fbmem");
 	}else{
@@ -637,7 +659,7 @@ int __init acer_panel_init(void)
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
 	if(!err){
-		if (acer_board_type == BOARD_PICASSO_M) {
+		if ((acer_board_type == BOARD_PICASSO_M) || (acer_board_type == BOARD_PICASSO_E2)) {
 			err = nvhost_device_register(&acer_pm_disp1_device);
 		}else{
 			err = nvhost_device_register(&acer_p2_disp1_device);

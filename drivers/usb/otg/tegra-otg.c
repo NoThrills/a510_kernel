@@ -56,8 +56,7 @@ static bool wakeup_flag = false;
 #define  USB_VBUS_STATUS	(1 << 10)
 #define  USB_INTS		(USB_VBUS_INT_STATUS | USB_ID_INT_STATUS)
 
-#if defined(CONFIG_ARCH_ACER_T30)
-static struct wake_lock usb_wake_lock;
+#if defined(CONFIG_DOCK_V2)
 extern int acer_board_type;
 extern int acer_board_id;
 
@@ -227,10 +226,10 @@ static void irq_work(struct work_struct *work)
 			else
 				to = OTG_STATE_A_SUSPEND;
 		}
-#if defined(CONFIG_ARCH_ACER_T30)
-			/* dock is attaching, USB1 status should be suspend */
-			if (gpio_get_value(TEGRA_GPIO_PN1))
-				to = OTG_STATE_A_SUSPEND;
+#if defined(CONFIG_DOCK_V2)
+		/* dock is attaching, USB1 status should be suspend */
+		if (gpio_get_value(TEGRA_GPIO_PN1))
+			to = OTG_STATE_A_SUSPEND;
 #endif
 
 	}
@@ -266,7 +265,6 @@ static void irq_work(struct work_struct *work)
 				usb_gadget_vbus_disconnect(otg->gadget);
 				wake_lock_timeout(&usb_wake_lock, 3*HZ);
 				printk(KERN_INFO "vbus disconnected, unlock wakelock\n");
-				tegra_start_host(tegra);
 			}
 		}
 #else
@@ -390,14 +388,37 @@ static int tegra_otg_set_suspend(struct otg_transceiver *otg, int suspend)
 static int tegra_otg_probe(struct platform_device *pdev)
 {
 	struct tegra_otg_data *tegra;
+	struct tegra_otg_platform_data *otg_pdata;
+	struct tegra_ehci_platform_data *ehci_pdata;
 	struct resource *res;
 	int err;
+#if defined(CONFIG_ARCH_ACER_T30) && !defined(CONFIG_MACH_PICASSO_E2)
+	int gpio_status;
+#endif
 
 	tegra = kzalloc(sizeof(struct tegra_otg_data), GFP_KERNEL);
 	if (!tegra)
 		return -ENOMEM;
 
+#if defined(CONFIG_ARCH_ACER_T30) && !defined(CONFIG_MACH_PICASSO_E2)
+	gpio_status = gpio_request(TEGRA_GPIO_PN1, "VBUS_USB");
+	if (gpio_status < 0) {
+		printk("request usb vbus enable gpio failed\n");
+	} else {
+		tegra_gpio_enable(TEGRA_GPIO_PN1);
+		gpio_status = gpio_direction_output(TEGRA_GPIO_PN1, 1);
+		if (gpio_status < 0) {
+			printk("set usb vbus enable gpio direction failed\n");
+		} else {
+			gpio_set_value(TEGRA_GPIO_PN1, 0);
+		}
+		gpio_free(TEGRA_GPIO_PN1);
+	}
+#endif
+
 	tegra->otg.dev = &pdev->dev;
+	otg_pdata = tegra->otg.dev->platform_data;
+	ehci_pdata = otg_pdata->ehci_pdata;
 	tegra->otg.label = "tegra-otg";
 	tegra->otg.state = OTG_STATE_UNDEFINED;
 	tegra->otg.set_host = tegra_otg_set_host;
@@ -470,9 +491,8 @@ static int tegra_otg_probe(struct platform_device *pdev)
 	}
 	INIT_WORK (&tegra->work, irq_work);
 
-#ifndef CONFIG_USB_HOTPLUG
-	clk_disable(tegra->clk);
-#endif
+	if (!ehci_pdata->default_enable)
+		clk_disable(tegra->clk);
 	dev_info(&pdev->dev, "otg transceiver registered\n");
 	return 0;
 
@@ -505,9 +525,12 @@ static int __exit tegra_otg_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_DOCK_V2)
 static int is_dock_insert_in_suspend = false;
 static int is_dock_insert_in_resume = false;
+static int is_otg_cable_insert_in_suspend = false;
+static int is_otg_cable_insert_in_resume = false;
+#elif defined(CONFIG_ARCH_ACER_T30) && !defined(CONFIG_MACH_PICASSO_E2)
 static int is_otg_cable_insert_in_suspend = false;
 static int is_otg_cable_insert_in_resume = false;
 #endif
@@ -519,7 +542,7 @@ static int tegra_otg_suspend(struct device *dev)
 	struct tegra_otg_data *tegra_otg = platform_get_drvdata(pdev);
 	struct otg_transceiver *otg = &tegra_otg->otg;
 	enum usb_otg_state from = otg->state;
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_ARCH_ACER_T30) && !defined(CONFIG_MACH_PICASSO_E2)
 	int val;
 #endif
 	/* store the interupt enable for cable ID and VBUS */
@@ -533,7 +556,7 @@ static int tegra_otg_suspend(struct device *dev)
 	}
 	tegra_otg_disable_clk();
 
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_DOCK_V2)
 	/* Disable wakeup function when OTG or Dock plug in */
 	val = readl(tegra_otg->regs + USB_PHY_WAKEUP);
 	if ((val & USB_ID_STATUS) && gpio_get_value(get_dock_gpio_pin())){
@@ -543,7 +566,16 @@ static int tegra_otg_suspend(struct device *dev)
 
 	is_dock_insert_in_suspend = !gpio_get_value(get_dock_gpio_pin());
 	is_otg_cable_insert_in_suspend = !(val & USB_ID_STATUS);
-#elif defined(CONFIG_ARCH_ACER_T20)
+#elif defined(CONFIG_ARCH_ACER_T30) && !defined(CONFIG_MACH_PICASSO_E2)
+	/* Disable wakeup function when OTG plug in*/
+	val = readl(tegra_otg->regs + USB_PHY_WAKEUP);
+	if ((val & USB_ID_STATUS)){
+		enable_irq_wake(tegra_otg->irq);
+		wakeup_flag = true;
+	}
+
+	is_otg_cable_insert_in_suspend = !(val & USB_ID_STATUS);
+#elif defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_ARCH_ACER_T20)
 	enable_irq_wake(tegra_otg->irq);
 	wakeup_flag = true;
 #endif
@@ -581,7 +613,7 @@ static void tegra_otg_resume(struct device *dev)
 		spin_unlock_irqrestore(&tegra_otg->lock, flags);
 	}
 
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_DOCK_V2)
 	is_dock_insert_in_resume = !gpio_get_value(get_dock_gpio_pin());
 	is_otg_cable_insert_in_resume = !(val & USB_ID_STATUS);
 
@@ -593,7 +625,17 @@ static void tegra_otg_resume(struct device *dev)
 		}
 		wakeup_flag = false;
 	}
-#elif defined(CONFIG_ARCH_ACER_T20)
+#elif defined(CONFIG_ARCH_ACER_T30) && !defined(CONFIG_MACH_PICASSO_E2)
+	is_otg_cable_insert_in_resume = !(val & USB_ID_STATUS);
+
+	if (wakeup_flag){
+		if ((val & USB_ID_STATUS) ||
+				(is_otg_cable_insert_in_suspend == false && is_otg_cable_insert_in_resume == true)) {
+			disable_irq_wake(tegra_otg->irq);
+		}
+		wakeup_flag = false;
+	}
+#elif defined(CONFIG_MACH_PICASSO_E2) || defined(CONFIG_ARCH_ACER_T20)
 	if (wakeup_flag){
 		disable_irq_wake(tegra_otg->irq);
 		wakeup_flag = false;

@@ -16,6 +16,9 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
+#if defined(CONFIG_MACH_PICASSO_M)
+#include <linux/string.h>
+#endif
 
 #include "core.h"
 #include "bus.h"
@@ -23,8 +26,52 @@
 #include "sd_ops.h"
 
 #if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+#define EMMC_TYPE_MAX_LEN 11
+
+static struct kobject *device_info_kobj = NULL;
+static int erase_group_def = 0;
+static int hc_erase_group_size = 0;
+static int boot_size_multi = 0;
+static unsigned int erase_grp_size = 0;
+static unsigned int erase_grp_mult = 0;
+static int emmc_size = 0;
+static char *emmc_name = NULL;
+static char emmc_type[EMMC_TYPE_MAX_LEN + 1] = "unknow type";
+static char emmc_date[EMMC_TYPE_MAX_LEN + 1] = "unknow date";
+
 #define SANDISK_X3_CID_MID 69
 unsigned int boot_partition_sectors = 0;
+#endif
+
+#if defined(CONFIG_MACH_PICASSO_M)
+#define EMMC_INFO_NO_INDEX 0xFFFF
+#define EMMC_PRODUCE_NAME_LEN 6
+#define EMMC_INFO_MAX_LEN 30
+
+static char emmc_info[EMMC_INFO_MAX_LEN] = "unknow eMMC";
+
+struct emmc_data_info {
+	char prod_name[EMMC_PRODUCE_NAME_LEN+1];
+	char info[EMMC_INFO_MAX_LEN+1];
+	int ext_csd_index;
+	u8 ext_csd_value;
+};
+
+static const struct emmc_data_info  emmc_data[] = {
+	{ "MBG8FA", "Samsung 32G KLMBG8FEJA-A001", EMMC_INFO_NO_INDEX, 0x2b},
+	{ "SEM32G", "Sandisk 32G SDIN4E2", EMMC_INFO_NO_INDEX, 0xed},
+	{ "MMC16G", "Kingston 16G KE4BT4B6A", EMMC_INFO_NO_INDEX, 0xc0},
+	{ "SEM16G", "Sandisk 16G SDIN5C1", 157, 0x9e},
+	{ "SEM16G", "Sandisk 16G SDIN5C2", 157, 0xed},
+};
+
+#define MMC_INFO_ATTR(name, fmt, args...)				\
+static ssize_t mmc_info_##name##_show (struct device *dev,		\
+			struct device_attribute *attr, char *buf)	\
+{									\
+	return sprintf(buf, fmt, args);					\
+}									\
+static DEVICE_ATTR(name, S_IRUGO, mmc_info_##name##_show, NULL)
 #endif
 
 static const unsigned int tran_exp[] = {
@@ -59,6 +106,29 @@ static const unsigned int tacc_mant[] = {
 			__res |= resp[__off-1] << ((32 - __shft) % 32);	\
 		__res & __mask;						\
 	})
+
+#if defined(CONFIG_MACH_PICASSO_M)
+static void mmc_set_emmc_info(struct mmc_card *card, u8 *ext_csd)
+{
+	int i = 0;
+	int emmc_count = ARRAY_SIZE (emmc_data);
+
+	for (i=0;i<emmc_count;i++) {
+		if (!strcmp(card->cid.prod_name, emmc_data[i].prod_name)) {
+			if (emmc_data[i].ext_csd_index == EMMC_INFO_NO_INDEX) {
+				strcpy(emmc_info, emmc_data[i].info);
+				break;
+			} else if (ext_csd[emmc_data[i].ext_csd_index] ==
+					emmc_data[i].ext_csd_value) {
+				strcpy(emmc_info, emmc_data[i].info);
+				break;
+			}
+		}
+	}
+	printk("[%s] The eMMC of device is %s\n", mmc_hostname(card->host),
+		emmc_info);
+}
+#endif
 
 /*
  * Given the decoded CSD structure, decode the raw CID to our CID structure.
@@ -175,6 +245,10 @@ static int mmc_decode_csd(struct mmc_card *card)
 		csd->erase_size <<= csd->write_blkbits - 9;
 	}
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	erase_grp_size = UNSTUFF_BITS(resp, 42, 5);
+	erase_grp_mult = UNSTUFF_BITS(resp, 37, 5);
+#endif
 	return 0;
 }
 
@@ -395,11 +469,64 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 	else
 		card->erased_byte = 0x0;
 
+#if defined(CONFIG_MACH_PICASSO_M)
+	mmc_set_emmc_info(card, ext_csd);
+#endif
+
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	erase_group_def = ext_csd[EXT_CSD_ERASE_GROUP_DEF];
+	boot_size_multi = ext_csd[EXT_CSD_BOOT_SIZE_MULTI];
+	hc_erase_group_size = ext_csd[EXT_CSD_HC_ERASE_GRP_SIZE];
+#endif
 out:
 	kfree(ext_csd);
 
 	return err;
 }
+
+
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+#define debug_attr(_name, fmt ,args...) \
+static ssize_t _name##_show (struct kobject *kobj, struct kobj_attribute *attr, char * buf)\
+{										\
+	return sprintf(buf, fmt, args);						\
+}										\
+	static struct kobj_attribute _name##_attr = {				\
+	.attr = {								\
+	.name = __stringify(_name),						\
+	.mode = 0644,								\
+	},									\
+	.show = _name##_show,							\
+	}
+
+debug_attr(BOOT_SIZE_MULTI, "%x\n", boot_size_multi);
+debug_attr(ERASE_GRP_SIZE, "0x%02x\n", erase_grp_size);
+debug_attr(ERASE_GRP_MULT, "0x%02x\n", erase_grp_mult);
+debug_attr(ERASE_GROUP_DEF, "%x\n", erase_group_def);
+debug_attr(HC_ERASE_GROUP_SIZE, "%x\n", hc_erase_group_size);
+debug_attr(type, "%s\n", emmc_type);
+debug_attr(name, "%s\n", emmc_name);
+debug_attr(size, "%d MB\n", emmc_size);
+debug_attr(date, "%s\n", emmc_date);
+
+static struct attribute * group[] = {
+	&BOOT_SIZE_MULTI_attr.attr,
+	&ERASE_GRP_SIZE_attr.attr,
+	&ERASE_GRP_MULT_attr.attr,
+	&ERASE_GROUP_DEF_attr.attr,
+	&HC_ERASE_GROUP_SIZE_attr.attr,
+	&type_attr.attr,
+	&name_attr.attr,
+	&size_attr.attr,
+	&date_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group =
+{
+	.attrs = group,
+};
+#endif
 
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
@@ -417,6 +544,9 @@ MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);
 MMC_DEV_ATTR(enhanced_area_size, "%u\n", card->ext_csd.enhanced_area_size);
+#if defined(CONFIG_MACH_PICASSO_M)
+MMC_INFO_ATTR(acer_emmc, "%s\n", emmc_info);
+#endif
 
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
@@ -432,6 +562,9 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_serial.attr,
 	&dev_attr_enhanced_area_offset.attr,
 	&dev_attr_enhanced_area_size.attr,
+#if defined(CONFIG_MACH_PICASSO_M)
+	&dev_attr_acer_emmc.attr,
+#endif
 	NULL,
 };
 
@@ -781,6 +914,43 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 
 	if (!oldcard)
 		host->card = card;
+
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	switch (card->type) {
+		case MMC_TYPE_MMC:
+			sprintf(emmc_type, "MMC");
+			break;
+		case MMC_TYPE_SD:
+			sprintf(emmc_type, "SD");
+			break;
+		case MMC_TYPE_SDIO:
+			sprintf(emmc_type, "SDIO");
+			break;
+		case MMC_TYPE_SD_COMBO:
+			sprintf(emmc_type, "SDcombo");
+			break;
+		default:
+			sprintf(emmc_type, "unknow");
+	}
+
+	sprintf(emmc_date, "%02d/%04d", card->cid.month, card->cid.year);
+	emmc_size = card->ext_csd.sectors >> 11;
+	emmc_name = card->cid.prod_name;
+
+	if (device_info_kobj == NULL) {
+		device_info_kobj = kobject_create_and_add("dev-info_rom", NULL);
+		if (device_info_kobj == NULL) {
+			pr_warning("%s: subsystem_register failed\n",
+					mmc_hostname(card->host));
+		} else {
+			err = sysfs_create_group(device_info_kobj, &attr_group);
+			if(err) {
+				pr_warning("%s: sysfs_create_group failed\n",
+						mmc_hostname(card->host));
+			}
+		}
+	}
+#endif
 
 	return 0;
 

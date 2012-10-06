@@ -29,6 +29,9 @@
 
 #include "sdhci.h"
 
+#if defined(CONFIG_ARCH_ACER_T30)
+#include "sdhci-pltfm.h"
+#endif
 #if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 #include <linux/gpio.h>
 #include <mach/sdhci.h>
@@ -36,9 +39,6 @@
 #include <linux/seq_file.h>
 #include <linux/fs.h>
 #include <linux/debugfs.h>
-#endif
-#if defined(CONFIG_ARCH_ACER_T30)
-#include "sdhci-pltfm.h"
 #endif
 
 #define DRIVER_NAME "sdhci"
@@ -50,6 +50,8 @@
 	defined(CONFIG_MMC_SDHCI_MODULE))
 #define SDHCI_USE_LEDS_CLASS
 #endif
+
+#define MAX_TUNING_LOOP 40
 
 static unsigned int debug_quirks = 0;
 
@@ -968,7 +970,9 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		flags |= SDHCI_CMD_CRC;
 	if (cmd->flags & MMC_RSP_OPCODE)
 		flags |= SDHCI_CMD_INDEX;
-	if (cmd->data)
+
+	/* CMD19 is special in that the Data Present Select should be set */
+	if (cmd->data || (cmd->opcode == MMC_SEND_TUNING_BLOCK))
 		flags |= SDHCI_CMD_DATA;
 
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->opcode, flags), SDHCI_COMMAND);
@@ -1560,6 +1564,158 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 		return 0;
 }
 
+static int sdhci_execute_tuning(struct mmc_host *mmc)
+{
+	struct sdhci_host *host;
+	u16 ctrl;
+	u32 ier;
+	int tuning_loop_counter = MAX_TUNING_LOOP;
+	unsigned long timeout;
+	int err = 0;
+
+	host = mmc_priv(mmc);
+
+	disable_irq(host->irq);
+	spin_lock(&host->lock);
+
+	if ((host->quirks & SDHCI_QUIRK_NON_STANDARD_TUNING) &&
+		host->ops->execute_freq_tuning) {
+		err = host->ops->execute_freq_tuning(host);
+		spin_unlock(&host->lock);
+		enable_irq(host->irq);
+		return err;
+	}
+
+	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+
+	/*
+	 * Host Controller needs tuning only in case of SDR104 mode
+	 * and for SDR50 mode when Use Tuning for SDR50 is set in
+	 * Capabilities register.
+	 */
+	if (((ctrl & SDHCI_CTRL_UHS_MASK) == SDHCI_CTRL_UHS_SDR104) ||
+	    (((ctrl & SDHCI_CTRL_UHS_MASK) == SDHCI_CTRL_UHS_SDR50) &&
+	    (host->flags & SDHCI_SDR50_NEEDS_TUNING)))
+		ctrl |= SDHCI_CTRL_EXEC_TUNING;
+	else {
+		spin_unlock(&host->lock);
+		enable_irq(host->irq);
+		return 0;
+	}
+
+	sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+
+	/*
+	 * As per the Host Controller spec v3.00, tuning command
+	 * generates Buffer Read Ready interrupt, so enable that.
+	 *
+	 * Note: The spec clearly says that when tuning sequence
+	 * is being performed, the controller does not generate
+	 * interrupts other than Buffer Read Ready interrupt. But
+	 * to make sure we don't hit a controller bug, we _only_
+	 * enable Buffer Read Ready interrupt here.
+	 */
+	ier = sdhci_readl(host, SDHCI_INT_ENABLE);
+	sdhci_clear_set_irqs(host, ier, SDHCI_INT_DATA_AVAIL);
+
+	/*
+	 * Issue CMD19 repeatedly till Execute Tuning is set to 0 or the number
+	 * of loops reaches 40 times or a timeout of 150ms occurs.
+	 */
+	timeout = 150;
+	do {
+		struct mmc_command cmd = {0};
+		struct mmc_request mrq = {0};
+
+		if (!tuning_loop_counter && !timeout)
+			break;
+
+		cmd.opcode = MMC_SEND_TUNING_BLOCK;
+		cmd.arg = 0;
+		cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+		cmd.retries = 0;
+		cmd.data = NULL;
+		cmd.error = 0;
+
+		mrq.cmd = &cmd;
+		host->mrq = &mrq;
+
+		/*
+		 * In response to CMD19, the card sends 64 bytes of tuning
+		 * block to the Host Controller. So we set the block size
+		 * to 64 here.
+		 */
+		sdhci_writew(host, SDHCI_MAKE_BLKSZ(7, 64), SDHCI_BLOCK_SIZE);
+
+		/*
+		 * The tuning block is sent by the card to the host controller.
+		 * So we set the TRNS_READ bit in the Transfer Mode register.
+		 * This also takes care of setting DMA Enable and Multi Block
+		 * Select in the same register to 0.
+		 */
+		sdhci_writew(host, SDHCI_TRNS_READ, SDHCI_TRANSFER_MODE);
+
+		sdhci_send_command(host, &cmd);
+
+		host->cmd = NULL;
+		host->mrq = NULL;
+
+		spin_unlock(&host->lock);
+		enable_irq(host->irq);
+
+		/* Wait for Buffer Read Ready interrupt */
+		wait_event_interruptible_timeout(host->buf_ready_int,
+					(host->tuning_done == 1),
+					msecs_to_jiffies(50));
+		disable_irq(host->irq);
+		spin_lock(&host->lock);
+
+		if (!host->tuning_done) {
+			printk(KERN_INFO DRIVER_NAME ": Timeout waiting for "
+				"Buffer Read Ready interrupt during tuning "
+				"procedure, falling back to fixed sampling "
+				"clock\n");
+			ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+			ctrl &= ~SDHCI_CTRL_TUNED_CLK;
+			ctrl &= ~SDHCI_CTRL_EXEC_TUNING;
+			sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+
+			err = -EIO;
+			goto out;
+		}
+
+		host->tuning_done = 0;
+
+		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+		tuning_loop_counter--;
+		timeout--;
+		mdelay(1);
+	} while (ctrl & SDHCI_CTRL_EXEC_TUNING);
+
+	/*
+	 * The Host Driver has exhausted the maximum number of loops allowed,
+	 * so use fixed sampling frequency.
+	 */
+	if (!tuning_loop_counter || !timeout) {
+		ctrl &= ~SDHCI_CTRL_TUNED_CLK;
+		sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+	} else {
+		if (!(ctrl & SDHCI_CTRL_TUNED_CLK)) {
+			printk(KERN_INFO DRIVER_NAME ": Tuning procedure"
+				" failed, falling back to fixed sampling"
+				" clock\n");
+			err = -EIO;
+		}
+	}
+
+out:
+	sdhci_clear_set_irqs(host, SDHCI_INT_DATA_AVAIL, ier);
+	spin_unlock(&host->lock);
+	enable_irq(host->irq);
+
+	return err;
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.set_ios	= sdhci_set_ios,
@@ -1568,6 +1724,7 @@ static const struct mmc_host_ops sdhci_ops = {
 	.disable	= sdhci_disable,
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
+	.execute_tuning			= sdhci_execute_tuning,
 };
 
 /*****************************************************************************\
@@ -1817,6 +1974,16 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 {
 	BUG_ON(intmask == 0);
 
+	/* CMD19 generates _only_ Buffer Read Ready interrupt */
+	if (intmask & SDHCI_INT_DATA_AVAIL) {
+		if (SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND)) ==
+		    MMC_SEND_TUNING_BLOCK) {
+			host->tuning_done = 1;
+			wake_up(&host->buf_ready_int);
+			return;
+		}
+	}
+
 	if (!host->data) {
 		/*
 		 * The "data complete" interrupt is also used to
@@ -2004,10 +2171,10 @@ int sdhci_resume_host(struct sdhci_host *host)
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	struct tegra_sdhci_platform_data *plat = pdev->dev.platform_data;
 #elif defined(CONFIG_ARCH_ACER_T30)
-	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
-	struct tegra_sdhci_platform_data *plat = pdev->dev.platform_data;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct tegra_sdhci_host *tegra_host = pltfm_host->priv;
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct tegra_sdhci_platform_data *plat = pdev->dev.platform_data;
 #endif
 
 	if (host->vmmc) {
@@ -2055,17 +2222,32 @@ int sdhci_resume_host(struct sdhci_host *host)
 	}
 #elif defined(CONFIG_ARCH_ACER_T30)
 	if (ret) {
-		host->card_present = 0;
-		regulator_disable(tegra_host->vdd_slot_reg);
-		host->regulator_count--;
-		ret = 0;
+		tegra_host->card_present = 0;
+		if (tegra_host->is_rail_enabled) {
+#if defined(CONFIG_MACH_PICASSO_E2)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 0);
+#else
+			if (tegra_host->vdd_slot_reg)
+				regulator_disable(tegra_host->vdd_slot_reg);
+#endif
+			tegra_host->is_rail_enabled = 0;
+		}
 	}
 	if (plat->cd_gpio != -1) {
-		if ((gpio_get_value(plat->cd_gpio) == plat->cd_gpio_polarity) && (host->card_present == false)) {
+		if ((gpio_get_value(plat->cd_gpio) == 0) && (tegra_host->card_present == 0)) {
 			printk(KERN_INFO "%s was inserted in suspend mode !!\n", mmc_hostname(host->mmc));
-			host->card_present = (gpio_get_value(plat->cd_gpio) == plat->cd_gpio_polarity);
-			regulator_enable(tegra_host->vdd_slot_reg);
-			host->regulator_count++;
+			tegra_host->card_present = 1;
+			if (!tegra_host->is_rail_enabled) {
+#if defined(CONFIG_MACH_PICASSO_E2)
+				if (gpio_is_valid(plat->power_gpio))
+					gpio_set_value(plat->power_gpio, 1);
+#else
+				if (tegra_host->vdd_slot_reg)
+					regulator_enable(tegra_host->vdd_slot_reg);
+#endif
+				tegra_host->is_rail_enabled = 1;
+			}
 		}
 	}
 #endif
@@ -2329,6 +2511,10 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (caps[1] & SDHCI_SUPPORT_DDR50)
 		mmc->caps |= MMC_CAP_UHS_DDR50;
 
+	/* Does the host needs tuning for SDR50? */
+	if (caps[1] & SDHCI_USE_SDR50_TUNING)
+		host->flags |= SDHCI_SDR50_NEEDS_TUNING;
+
 	/* Driver Type(s) (A, C, D) supported by the host */
 	if (caps[1] & SDHCI_DRIVER_TYPE_A)
 		mmc->caps |= MMC_CAP_DRIVER_TYPE_A;
@@ -2471,6 +2657,9 @@ int sdhci_add_host(struct sdhci_host *host)
 		sdhci_tasklet_finish, (unsigned long)host);
 
 	setup_timer(&host->timer, sdhci_timeout_timer, (unsigned long)host);
+
+	if (host->version >= SDHCI_SPEC_300)
+		init_waitqueue_head(&host->buf_ready_int);
 
 	ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
 		mmc_hostname(mmc), host);

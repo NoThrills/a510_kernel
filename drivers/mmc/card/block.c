@@ -57,7 +57,7 @@ static DEFINE_MUTEX(block_mutex);
 #define INAND_CMD38_ARG_SECTRIM1 0x81
 #define INAND_CMD38_ARG_SECTRIM2 0x88
 
-#define MMC_CMD_RETRIES 3
+#define MMC_CMD_RETRIES 10
 /*
  * The defaults come from config options but can be overriden by module
  * or bootarg options.
@@ -792,6 +792,11 @@ static int mmc_blk_probe(struct mmc_card *card)
 
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
 	mmc_set_bus_resume_policy(card->host, 1);
+#endif
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	if (mmc_card_sd(card)) {
+		md->disk->queue->backing_dev_info.ra_pages = 512;
+	}
 #endif
 	add_disk(md->disk);
 	return 0;

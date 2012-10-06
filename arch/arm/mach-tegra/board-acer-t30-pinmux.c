@@ -20,13 +20,12 @@
 #include "board.h"
 #include "board-acer-t30.h"
 #include "gpio-names.h"
+#include "gpio-pe2.h"
 
 extern int acer_board_id;
 extern int acer_board_type;
-#if defined(CONFIG_MACH_PICASSO2)
-
+extern int acer_sku;
 int tegra_pinmux_set_suspend_state(const struct tegra_pingroup_config *config);
-#endif
 
 #define DEFAULT_DRIVE(_name)					\
 	{							\
@@ -107,45 +106,8 @@ static __initdata struct tegra_drive_pingroup_config cardhu_drive_pinmux[] = {
 
 };
 
-#define DEFAULT_PINMUX(_pingroup, _mux, _pupd, _tri, _io)	\
-	{							\
-		.pingroup	= TEGRA_PINGROUP_##_pingroup,	\
-		.func		= TEGRA_MUX_##_mux,		\
-		.pupd		= TEGRA_PUPD_##_pupd,		\
-		.tristate	= TEGRA_TRI_##_tri,		\
-		.io		= TEGRA_PIN_##_io,		\
-		.lock		= TEGRA_PIN_LOCK_DEFAULT,	\
-		.od		= TEGRA_PIN_OD_DEFAULT,		\
-		.ioreset	= TEGRA_PIN_IO_RESET_DEFAULT,	\
-	}
-
-#define I2C_PINMUX(_pingroup, _mux, _pupd, _tri, _io, _lock, _od) \
-	{							\
-		.pingroup	= TEGRA_PINGROUP_##_pingroup,	\
-		.func		= TEGRA_MUX_##_mux,		\
-		.pupd		= TEGRA_PUPD_##_pupd,		\
-		.tristate	= TEGRA_TRI_##_tri,		\
-		.io		= TEGRA_PIN_##_io,		\
-		.lock		= TEGRA_PIN_LOCK_##_lock,	\
-		.od		= TEGRA_PIN_OD_##_od,		\
-		.ioreset	= TEGRA_PIN_IO_RESET_DEFAULT,	\
-	}
-
-#define VI_PINMUX(_pingroup, _mux, _pupd, _tri, _io, _lock, _ioreset) \
-	{							\
-		.pingroup	= TEGRA_PINGROUP_##_pingroup,	\
-		.func		= TEGRA_MUX_##_mux,		\
-		.pupd		= TEGRA_PUPD_##_pupd,		\
-		.tristate	= TEGRA_TRI_##_tri,		\
-		.io		= TEGRA_PIN_##_io,		\
-		.lock		= TEGRA_PIN_LOCK_##_lock,	\
-		.od		= TEGRA_PIN_OD_DEFAULT,		\
-		.ioreset	= TEGRA_PIN_IO_RESET_##_ioreset	\
-	}
-
-
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)  /* Picasso2 & PicassoM Pinmux configuration */
 static __initdata struct tegra_pingroup_config picasso2_pinmux_common[] = {
+	DEFAULT_PINMUX(GMI_WP_N,        GMI,             PULL_UP,       NORMAL,     INPUT), //
 	DEFAULT_PINMUX(CLK1_OUT,        EXTPERIPH1,      NORMAL,        NORMAL,     INPUT), // Function o
 	DEFAULT_PINMUX(DAP1_DIN,        I2S0,            PULL_DOWN,     NORMAL,     OUTPUT), //G
 	DEFAULT_PINMUX(DAP1_DOUT,       I2S0,            PULL_DOWN,     TRISTATE,   INPUT), //GI
@@ -333,7 +295,7 @@ static __initdata struct tegra_pingroup_config picasso2_pinmux_common[] = {
 	DEFAULT_PINMUX(KB_COL5,         KBC,             NORMAL,        NORMAL,     OUTPUT), // G (NC)
 	DEFAULT_PINMUX(KB_COL6,         KBC,             NORMAL,        NORMAL,     OUTPUT), // G (NC)
 	DEFAULT_PINMUX(KB_COL7,         KBC,             NORMAL,        NORMAL,     OUTPUT), // G (NC)
-	DEFAULT_PINMUX(KB_ROW0,         KBC,             PULL_DOWN,     NORMAL,     OUTPUT), // G
+	DEFAULT_PINMUX(KB_ROW0,         KBC,             NORMAL,        NORMAL,     OUTPUT), // G
 	DEFAULT_PINMUX(KB_ROW1,         RSVD2,           NORMAL,        TRISTATE,   INPUT), //GI
 	DEFAULT_PINMUX(KB_ROW2,         KBC,             NORMAL,        NORMAL,     OUTPUT), // G
 	DEFAULT_PINMUX(KB_ROW3,         KBC,             PULL_UP,       NORMAL,     OUTPUT), // G (NC)
@@ -401,10 +363,7 @@ static __initdata struct tegra_pingroup_config picasso2_pinmux_common[] = {
 	/* SDMMC1 WP gpio */
 	DEFAULT_PINMUX(VI_D11,          RSVD1,           PULL_UP,       NORMAL,     INPUT),
 };
-#endif /* Picasso2 & PicassoM Pinmux configuration */
 
-
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 static __initdata struct tegra_pingroup_config cardhu_pinmux_dock_external_pull_up[] = {
 	DEFAULT_PINMUX(GPIO_PBB0,       RSVD1,           NORMAL,    NORMAL,     INPUT),
 	DEFAULT_PINMUX(GPIO_PBB6,       VGP6,            NORMAL,    NORMAL,     INPUT),
@@ -423,22 +382,6 @@ static __initdata struct tegra_pingroup_config cardhu_pinmux_sensor_dvt2[] = {
 	DEFAULT_PINMUX(DAP3_SCLK,       I2S2,            PULL_DOWN,    NORMAL,     OUTPUT), //G
 	DEFAULT_PINMUX(SPI2_CS0_N,      SPI2,            PULL_UP,   TRISTATE,     INPUT), // GI
 };
-#else
-static __initdata struct tegra_pingroup_config cardhu_pinmux_dock_external_pull_up[] = {
-	DEFAULT_PINMUX(GPIO_PBB0,       RSVD1,           NORMAL,    NORMAL,     INPUT),
-	DEFAULT_PINMUX(GPIO_PBB6,       VGP6,            NORMAL,    NORMAL,     INPUT),
-};
-static __initdata struct tegra_pingroup_config cardhu_pinmux_dock_internal_pull_up[] = {
-	DEFAULT_PINMUX(GPIO_PBB0,       RSVD1,           NORMAL,    NORMAL,     INPUT),
-	DEFAULT_PINMUX(GPIO_PBB6,       VGP6,            PULL_UP,   NORMAL,     INPUT),
-};
-static __initdata struct tegra_pingroup_config cardhu_pinmux_sensor_dvt1[] = {
-	DEFAULT_PINMUX(GMI_AD15,        NAND,            NORMAL,    NORMAL,     OUTPUT),
-};
-static __initdata struct tegra_pingroup_config cardhu_pinmux_sensor_dvt2[] = {
-	DEFAULT_PINMUX(DAP3_SCLK,       I2S2,            NORMAL,    NORMAL,     OUTPUT),
-};
-#endif
 
 /* Clone from cardhu_pinmux_e1291_a04 */
 static __initdata struct tegra_pingroup_config acer_t30_pinmux[] = {
@@ -491,8 +434,18 @@ int __init acer_t30_pinmux_init(void)
 {
 	acer_t30_gpio_init_configure();
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
-	tegra_pinmux_config_table(picasso2_pinmux_common, ARRAY_SIZE(picasso2_pinmux_common));
+	/* common pinmux connfiguration */
+	switch (acer_board_type) {
+	case BOARD_PICASSO_2:
+	case BOARD_PICASSO_M:
+	case BOARD_PICASSO_MF:
+		tegra_pinmux_config_table(picasso2_pinmux_common, ARRAY_SIZE(picasso2_pinmux_common));
+		break;
+	case BOARD_PICASSO_E2:
+		tegra_pinmux_config_table(picasso_E2_pinmux_common, ARRAY_SIZE(picasso_E2_pinmux_common));
+		break;
+	}
+
 	switch (acer_board_type) {
 	case BOARD_PICASSO_2:
 		switch(acer_board_id) {
@@ -523,10 +476,32 @@ int __init acer_t30_pinmux_init(void)
 		tegra_pinmux_config_table(cardhu_pinmux_sensor_dvt2,
 					ARRAY_SIZE(cardhu_pinmux_sensor_dvt2));
 		break;
+	case BOARD_PICASSO_MF:
+		tegra_pinmux_config_table(cardhu_pinmux_sensor_dvt2,
+					ARRAY_SIZE(cardhu_pinmux_sensor_dvt2));
+		break;
+	case BOARD_PICASSO_E2:
+		switch (acer_board_id) {
+		case BOARD_EVT:
+			if (acer_sku == BOARD_SKU_WIFI)
+				tegra_pinmux_config_table(cardhu_pinmux_sensor_dvt1,
+							  ARRAY_SIZE(cardhu_pinmux_sensor_dvt1));
+			else
+				tegra_pinmux_config_table(cardhu_pinmux_sensor_dvt2,
+							  ARRAY_SIZE(cardhu_pinmux_sensor_dvt2));
+			break;
+		case BOARD_DVT1:
+			tegra_pinmux_config_table(cardhu_pinmux_sensor_dvt2,
+						  ARRAY_SIZE(cardhu_pinmux_sensor_dvt2));
+			break;
+		default:
+			tegra_pinmux_config_table(cardhu_pinmux_sensor_dvt2,
+						  ARRAY_SIZE(cardhu_pinmux_sensor_dvt2));
+		}
+		break;
 	}
 	tegra_drive_pinmux_config_table(cardhu_drive_pinmux,
 					ARRAY_SIZE(cardhu_drive_pinmux));
-#endif  /* Picasso2 & PicassoM Pinmux configuration */
 	tegra_pinmux_config_table(acer_t30_pinmux,
 					ARRAY_SIZE(acer_t30_pinmux));
 	cardhu_pinmux_audio_init();
@@ -534,7 +509,7 @@ int __init acer_t30_pinmux_init(void)
 	return 0;
 }
 
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M) // suspend pinmux setting
+// suspend pinmux setting
 static struct tegra_pingroup_config picasso2_suspend_pinmux_table[] = {
 	DEFAULT_PINMUX(DAP1_DOUT,       I2S0,            NORMAL,    TRISTATE,     INPUT), //GI
 	DEFAULT_PINMUX(SPI1_MISO,       SPI1,            NORMAL,    TRISTATE,     INPUT), // GI
@@ -671,7 +646,6 @@ void suspend_pinmux_setting(void)
 	for (i = 0; i < ARRAY_SIZE(picasso2_suspend_pinmux_table); i++)
 		tegra_pinmux_set_suspend_state(&picasso2_suspend_pinmux_table[i]);
 }
-#endif // suspend pinmux setting
 
 #define PIN_GPIO_LPM(_name, _gpio, _is_input, _value)	\
 	{					\
@@ -683,15 +657,7 @@ void suspend_pinmux_setting(void)
 	}
 
 struct gpio_init_pin_info pin_lpm_cardhu_common[] = {
-#if !defined(CONFIG_MACH_PICASSO2) || !defined(CONFIG_MACH_PICASSO2)
-	PIN_GPIO_LPM("GMI_CS3_N", TEGRA_GPIO_PK4, 0, 0),
-	PIN_GPIO_LPM("GMI_CS7",   TEGRA_GPIO_PI6, 1, 0),
-	PIN_GPIO_LPM("GMI_CS0",   TEGRA_GPIO_PJ0, 1, 0),
-	PIN_GPIO_LPM("GMI_CS1",   TEGRA_GPIO_PJ2, 1, 0),
-#endif
-#if defined(CONFIG_MACH_PICASSO2) || defined(CONFIG_MACH_PICASSO_M)
 	PIN_GPIO_LPM("GMI_A19",   TEGRA_GPIO_PK7, 0, 0),
-#endif
 };
 
 static void set_unused_pin_gpio(struct gpio_init_pin_info *lpm_pin_info,
