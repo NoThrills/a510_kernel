@@ -831,6 +831,11 @@ err_alloc_data_failed:
 
 static int a1026_remove(struct i2c_client *client)
 {
+	gpio_free(a1026_data.pdata->gpio_a1026_wakeup);
+	gpio_free(a1026_data.pdata->gpio_a1026_reset);
+	gpio_free(a1026_data.pdata->gpio_a1026_clk);
+	kfree(a1026_data.pdata);
+
 	return 0;
 }
 
@@ -880,7 +885,6 @@ static int __init a1026_init(void)
 
 static void __exit a1026_exit(void)
 {
-	kfree(a1026_data.pdata);
 	i2c_del_driver(&a1026_driver);
 }
 

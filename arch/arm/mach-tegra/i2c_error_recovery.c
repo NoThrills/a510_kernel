@@ -30,9 +30,10 @@ int arb_lost_recovery(int scl_gpio, int sda_gpio)
 	int ret;
 	int retry = RETRY_MAX_COUNT;
 	int recovered_successfully = 0;
-	int val;
 #if defined(CONFIG_ARCH_ACER_T30)
 	int scl_gpio_status = 0;
+#else
+	int val;
 #endif
 
 	if ((!scl_gpio) || (!sda_gpio)) {

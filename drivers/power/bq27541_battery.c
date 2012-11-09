@@ -46,8 +46,8 @@ extern int acer_board_type;
 extern bool throttle_start;
 #endif
 
-#define RELEASED_DATE			"2012/05/07"
-#define DRIVER_VERSION			"1.6.5"
+#define RELEASED_DATE			"2012/07/17"
+#define DRIVER_VERSION			"1.6.7"
 
 #ifdef CONFIG_BATTERY_BQ27541
 
@@ -1384,7 +1384,7 @@ static int bq27541_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = bq27541_battery_temperature(di);
 		printk("AC = %d, Level = %d, RSOC = %d, Bat_temp = %d, CPU_temp = %d, LT = %d, Count = %d\n",
-			gpio_get_value(adapter), old_rsoc, bq27541_battery_check(1), val->intval, cpu_temp,
+			gpio_get_value(adapter), old_rsoc, bq27541_battery_check(1), val->intval/10, cpu_temp,
 			bq27541_low_temp_check(), counter);
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -1564,12 +1564,10 @@ static int bq27541_battery_probe(struct i2c_client *client,
 		if (retval < 0)
 			printk(KERN_INFO "%s: gpio_request failed for gpio-%d\n",__func__, TEGRA_GPIO_PJ2);
 		mdelay(10);
-		gpio_free(BATT_LEARN);
 	}
 
 	tegra_gpio_enable(BATT_LEARN);
 	retval = gpio_request(BATT_LEARN, "batt_learn");
-
 	if (retval < 0)
 		printk(KERN_INFO "%s: gpio_request failed for gpio-%d\n",__func__, TEGRA_GPIO_PX6);
 

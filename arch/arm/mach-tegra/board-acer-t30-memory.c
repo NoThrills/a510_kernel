@@ -124,7 +124,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_elpida_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x800001c5, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00020001, /* MC_EMEM_ARB_CFG */
+			0x00030003, /* MC_EMEM_ARB_CFG */
 			0xc0000010, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -243,7 +243,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_elpida_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x80000287, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00010001, /* MC_EMEM_ARB_CFG */
+			0x00010003, /* MC_EMEM_ARB_CFG */
 			0xc0000010, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -362,7 +362,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_elpida_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x8000040b, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00000001, /* MC_EMEM_ARB_CFG */
+			0x00000003, /* MC_EMEM_ARB_CFG */
 			0xc0000018, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -481,7 +481,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_elpida_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x80000713, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00000003, /* MC_EMEM_ARB_CFG */
+			0x00000006, /* MC_EMEM_ARB_CFG */
 			0xc0000025, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -600,7 +600,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_elpida_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x800010d9, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00000008, /* MC_EMEM_ARB_CFG */
+			0x0000000f, /* MC_EMEM_ARB_CFG */
 			0xc0000060, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000003, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000004, /* MC_EMEM_ARB_TIMING_RP */
@@ -723,7 +723,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_samsung_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x800001c5, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00020001, /* MC_EMEM_ARB_CFG */
+			0x00030003, /* MC_EMEM_ARB_CFG */
 			0xc0000010, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -842,7 +842,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_samsung_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x80000287, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00010001, /* MC_EMEM_ARB_CFG */
+			0x00010003, /* MC_EMEM_ARB_CFG */
 			0xc0000010, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -961,7 +961,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_samsung_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x8000040b, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00000001, /* MC_EMEM_ARB_CFG */
+			0x00000003, /* MC_EMEM_ARB_CFG */
 			0xc0000018, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -1080,7 +1080,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_samsung_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x80000713, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00000003, /* MC_EMEM_ARB_CFG */
+			0x00000006, /* MC_EMEM_ARB_CFG */
 			0xc0000025, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
@@ -1199,7 +1199,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso2_samsung_1gb[] =
 			0x00000000, /* EMC_CTT */
 			0x00000000, /* EMC_CTT_DURATION */
 			0x800010d9, /* EMC_DYN_SELF_REF_CONTROL */
-			0x00000008, /* MC_EMEM_ARB_CFG */
+			0x0000000f, /* MC_EMEM_ARB_CFG */
 			0xc0000060, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000003, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000004, /* MC_EMEM_ARB_TIMING_RP */
@@ -2678,11 +2678,11 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_WIFI_hynix_1gb[
 	},
 };
 
-static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[] =
+static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_Elpida_1gb[] =
 {
 	{
-		0x32,       /* Rev 3.2 */
-		25500,      /* SDRAM frequency */
+		0x32,		/* Rev 3.2 */
+		25500,		/* SDRAM frequency */
 		{
 			0x00000001, /* EMC_RC */
 			0x00000004, /* EMC_RFC */
@@ -2700,7 +2700,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_WDV */
 			0x00000005, /* EMC_QUSE */
 			0x00000004, /* EMC_QRST */
-			0x0000000a, /* EMC_QSAFE */
+			0x00000009, /* EMC_QSAFE */
 			0x0000000b, /* EMC_RDV */
 			0x000000c0, /* EMC_REFRESH */
 			0x00000000, /* EMC_BURST_REFRESH_NUM */
@@ -2720,7 +2720,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_TCLKSTOP */
 			0x000000c7, /* EMC_TREFBW */
 			0x00000006, /* EMC_QUSE_EXTRA */
-			0x00000004, /* EMC_FBIO_CFG6 */
+			0x00000006, /* EMC_FBIO_CFG6 */
 			0x00000000, /* EMC_ODT_WRITE */
 			0x00000000, /* EMC_ODT_READ */
 			0x00004288, /* EMC_FBIO_CFG5 */
@@ -2734,14 +2734,14 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x000fc000, /* EMC_DLL_XFORM_DQS5 */
 			0x000fc000, /* EMC_DLL_XFORM_DQS6 */
 			0x000fc000, /* EMC_DLL_XFORM_DQS7 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE0 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE1 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE2 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE3 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE4 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE5 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE6 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE7 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE0 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE1 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE2 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE3 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE4 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE5 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE6 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE7 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS0 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS1 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS2 */
@@ -2772,7 +2772,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000000, /* EMC_CTT_DURATION */
 			0x80000287, /* EMC_DYN_SELF_REF_CONTROL */
 			0x00020001, /* MC_EMEM_ARB_CFG */
-			0xc0000008, /* MC_EMEM_ARB_OUTSTANDING_REQ */
+			0xc0000010, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
 			0x00000002, /* MC_EMEM_ARB_TIMING_RC */
@@ -2801,8 +2801,8 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 		0x00000001, /* EMC_CFG.DYN_SELF_REF */
 	},
 	{
-		0x32,       /* Rev 3.2 */
-		51000,      /* SDRAM frequency */
+		0x32,		/* Rev 3.2 */
+		51000,		/* SDRAM frequency */
 		{
 			0x00000002, /* EMC_RC */
 			0x00000008, /* EMC_RFC */
@@ -2820,7 +2820,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_WDV */
 			0x00000005, /* EMC_QUSE */
 			0x00000004, /* EMC_QRST */
-			0x0000000a, /* EMC_QSAFE */
+			0x00000009, /* EMC_QSAFE */
 			0x0000000b, /* EMC_RDV */
 			0x00000181, /* EMC_REFRESH */
 			0x00000000, /* EMC_BURST_REFRESH_NUM */
@@ -2840,7 +2840,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_TCLKSTOP */
 			0x0000018e, /* EMC_TREFBW */
 			0x00000006, /* EMC_QUSE_EXTRA */
-			0x00000004, /* EMC_FBIO_CFG6 */
+			0x00000006, /* EMC_FBIO_CFG6 */
 			0x00000000, /* EMC_ODT_WRITE */
 			0x00000000, /* EMC_ODT_READ */
 			0x00004288, /* EMC_FBIO_CFG5 */
@@ -2854,14 +2854,14 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x000fc000, /* EMC_DLL_XFORM_DQS5 */
 			0x000fc000, /* EMC_DLL_XFORM_DQS6 */
 			0x000fc000, /* EMC_DLL_XFORM_DQS7 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE0 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE1 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE2 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE3 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE4 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE5 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE6 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE7 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE0 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE1 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE2 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE3 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE4 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE5 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE6 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE7 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS0 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS1 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS2 */
@@ -2892,7 +2892,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000000, /* EMC_CTT_DURATION */
 			0x8000040b, /* EMC_DYN_SELF_REF_CONTROL */
 			0x00010001, /* MC_EMEM_ARB_CFG */
-			0xc000000a, /* MC_EMEM_ARB_OUTSTANDING_REQ */
+			0xc0000010, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
 			0x00000002, /* MC_EMEM_ARB_TIMING_RC */
@@ -2921,8 +2921,8 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 		0x00000001, /* EMC_CFG.DYN_SELF_REF */
 	},
 	{
-		0x32,       /* Rev 3.2 */
-		102000,     /* SDRAM frequency */
+		0x32,		/* Rev 3.2 */
+		102000, 	/* SDRAM frequency */
 		{
 			0x00000005, /* EMC_RC */
 			0x00000010, /* EMC_RFC */
@@ -2940,7 +2940,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_WDV */
 			0x00000005, /* EMC_QUSE */
 			0x00000004, /* EMC_QRST */
-			0x0000000a, /* EMC_QSAFE */
+			0x00000009, /* EMC_QSAFE */
 			0x0000000b, /* EMC_RDV */
 			0x00000303, /* EMC_REFRESH */
 			0x00000000, /* EMC_BURST_REFRESH_NUM */
@@ -2960,7 +2960,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_TCLKSTOP */
 			0x0000031c, /* EMC_TREFBW */
 			0x00000006, /* EMC_QUSE_EXTRA */
-			0x00000004, /* EMC_FBIO_CFG6 */
+			0x00000006, /* EMC_FBIO_CFG6 */
 			0x00000000, /* EMC_ODT_WRITE */
 			0x00000000, /* EMC_ODT_READ */
 			0x00004288, /* EMC_FBIO_CFG5 */
@@ -2974,14 +2974,14 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x000fc000, /* EMC_DLL_XFORM_DQS5 */
 			0x000fc000, /* EMC_DLL_XFORM_DQS6 */
 			0x000fc000, /* EMC_DLL_XFORM_DQS7 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE0 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE1 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE2 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE3 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE4 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE5 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE6 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE7 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE0 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE1 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE2 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE3 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE4 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE5 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE6 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE7 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS0 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS1 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS2 */
@@ -3012,7 +3012,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000000, /* EMC_CTT_DURATION */
 			0x80000713, /* EMC_DYN_SELF_REF_CONTROL */
 			0x00000001, /* MC_EMEM_ARB_CFG */
-			0xc0000013, /* MC_EMEM_ARB_OUTSTANDING_REQ */
+			0xc0000018, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RP */
 			0x00000003, /* MC_EMEM_ARB_TIMING_RC */
@@ -3041,8 +3041,8 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 		0x00000001, /* EMC_CFG.DYN_SELF_REF */
 	},
 	{
-		0x32,       /* Rev 3.2 */
-		204000,     /* SDRAM frequency */
+		0x32,		/* Rev 3.2 */
+		204000, 	/* SDRAM frequency */
 		{
 			0x0000000a, /* EMC_RC */
 			0x00000020, /* EMC_RFC */
@@ -3060,7 +3060,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_WDV */
 			0x00000005, /* EMC_QUSE */
 			0x00000004, /* EMC_QRST */
-			0x0000000a, /* EMC_QSAFE */
+			0x00000009, /* EMC_QSAFE */
 			0x0000000b, /* EMC_RDV */
 			0x00000607, /* EMC_REFRESH */
 			0x00000000, /* EMC_BURST_REFRESH_NUM */
@@ -3080,7 +3080,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_TCLKSTOP */
 			0x00000638, /* EMC_TREFBW */
 			0x00000006, /* EMC_QUSE_EXTRA */
-			0x00000004, /* EMC_FBIO_CFG6 */
+			0x00000006, /* EMC_FBIO_CFG6 */
 			0x00000000, /* EMC_ODT_WRITE */
 			0x00000000, /* EMC_ODT_READ */
 			0x00004288, /* EMC_FBIO_CFG5 */
@@ -3094,14 +3094,14 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00080000, /* EMC_DLL_XFORM_DQS5 */
 			0x00080000, /* EMC_DLL_XFORM_DQS6 */
 			0x00080000, /* EMC_DLL_XFORM_DQS7 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE0 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE1 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE2 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE3 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE4 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE5 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE6 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE7 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE0 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE1 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE2 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE3 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE4 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE5 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE6 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE7 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS0 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS1 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS2 */
@@ -3161,8 +3161,8 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 		0x00000001, /* EMC_CFG.DYN_SELF_REF */
 	},
 	{
-		0x32,       /* Rev 3.2 */
-		333500,     /* SDRAM frequency */
+		0x32,		/* Rev 3.2 */
+		333500, 	/* SDRAM frequency */
 		{
 			0x0000000f, /* EMC_RC */
 			0x00000034, /* EMC_RFC */
@@ -3200,28 +3200,28 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000005, /* EMC_TCLKSTOP */
 			0x00000a2a, /* EMC_TREFBW */
 			0x00000000, /* EMC_QUSE_EXTRA */
-			0x00000004, /* EMC_FBIO_CFG6 */
+			0x00000006, /* EMC_FBIO_CFG6 */
 			0x00000000, /* EMC_ODT_WRITE */
 			0x00000000, /* EMC_ODT_READ */
 			0x00007088, /* EMC_FBIO_CFG5 */
 			0x002600a4, /* EMC_CFG_DIG_DLL */
 			0x00008000, /* EMC_CFG_DIG_DLL_PERIOD */
-			0x0003c000, /* EMC_DLL_XFORM_DQS0 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS1 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS2 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS3 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS4 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS5 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS6 */
-			0x0003c000, /* EMC_DLL_XFORM_DQS7 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE0 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE1 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE2 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE3 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE4 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE5 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE6 */
-			0x00000000, /* EMC_DLL_XFORM_QUSE7 */
+			0x00044000, /* EMC_DLL_XFORM_DQS0 */
+			0x00044000, /* EMC_DLL_XFORM_DQS1 */
+			0x00044000, /* EMC_DLL_XFORM_DQS2 */
+			0x00044000, /* EMC_DLL_XFORM_DQS3 */
+			0x00044000, /* EMC_DLL_XFORM_DQS4 */
+			0x00044000, /* EMC_DLL_XFORM_DQS5 */
+			0x00044000, /* EMC_DLL_XFORM_DQS6 */
+			0x00044000, /* EMC_DLL_XFORM_DQS7 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE0 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE1 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE2 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE3 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE4 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE5 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE6 */
+			0x00030000, /* EMC_DLL_XFORM_QUSE7 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS0 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS1 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS2 */
@@ -3252,7 +3252,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000000, /* EMC_CTT_DURATION */
 			0x800014d4, /* EMC_DYN_SELF_REF_CONTROL */
 			0x00000005, /* MC_EMEM_ARB_CFG */
-			0x8000003d, /* MC_EMEM_ARB_OUTSTANDING_REQ */
+			0xc000003d, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000001, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000002, /* MC_EMEM_ARB_TIMING_RP */
 			0x00000008, /* MC_EMEM_ARB_TIMING_RC */
@@ -3281,8 +3281,8 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 		0x00000000, /* EMC_CFG.DYN_SELF_REF */
 	},
 	{
-		0x32,       /* Rev 3.2 */
-		667000,     /* SDRAM frequency */
+		0x32,		/* Rev 3.2 */
+		667000, 	/* SDRAM frequency */
 		{
 			0x00000020, /* EMC_RC */
 			0x00000069, /* EMC_RFC */
@@ -3298,10 +3298,10 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000001, /* EMC_REXT */
 			0x00000000, /* EMC_WEXT */
 			0x00000007, /* EMC_WDV */
-			0x0000000a, /* EMC_QUSE */
+			0x00000009, /* EMC_QUSE */
 			0x00000009, /* EMC_QRST */
-			0x0000000b, /* EMC_QSAFE */
-			0x00000012, /* EMC_RDV */
+			0x0000000a, /* EMC_QSAFE */
+			0x00000011, /* EMC_RDV */
 			0x00001412, /* EMC_REFRESH */
 			0x00000000, /* EMC_BURST_REFRESH_NUM */
 			0x00000504, /* EMC_PRE_REFRESH_REQ_CNT */
@@ -3326,9 +3326,9 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00005088, /* EMC_FBIO_CFG5 */
 			0xf00b0191, /* EMC_CFG_DIG_DLL */
 			0x00008000, /* EMC_CFG_DIG_DLL_PERIOD */
-			0x0000000a, /* EMC_DLL_XFORM_DQS0 */
+			0x0000400a, /* EMC_DLL_XFORM_DQS0 */
 			0x0000000a, /* EMC_DLL_XFORM_DQS1 */
-			0x0000000a, /* EMC_DLL_XFORM_DQS2 */
+			0x007fc00a, /* EMC_DLL_XFORM_DQS2 */
 			0x0000000a, /* EMC_DLL_XFORM_DQS3 */
 			0x0000000a, /* EMC_DLL_XFORM_DQS4 */
 			0x0000000a, /* EMC_DLL_XFORM_DQS5 */
@@ -3350,19 +3350,19 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000000, /* EMC_DLI_TRIM_TXDQS5 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS6 */
 			0x00000000, /* EMC_DLI_TRIM_TXDQS7 */
-			0x0000000a, /* EMC_DLL_XFORM_DQ0 */
-			0x0000000a, /* EMC_DLL_XFORM_DQ1 */
-			0x0000000a, /* EMC_DLL_XFORM_DQ2 */
-			0x0000000a, /* EMC_DLL_XFORM_DQ3 */
+			0x0000000c, /* EMC_DLL_XFORM_DQ0 */
+			0x0000000c, /* EMC_DLL_XFORM_DQ1 */
+			0x0000000c, /* EMC_DLL_XFORM_DQ2 */
+			0x0000000c, /* EMC_DLL_XFORM_DQ3 */
 			0x000002a0, /* EMC_XM2CMDPADCTRL */
-			0x0800013d, /* EMC_XM2DQSPADCTRL2 */
+			0x0600013d, /* EMC_XM2DQSPADCTRL2 */
 			0x22220000, /* EMC_XM2DQPADCTRL2 */
 			0x77fff884, /* EMC_XM2CLKPADCTRL */
 			0x01f1f501, /* EMC_XM2COMPPADCTRL */
 			0x07077404, /* EMC_XM2VTTGENPADCTRL */
 			0x54000000, /* EMC_XM2VTTGENPADCTRL2 */
 			0x080001e8, /* EMC_XM2QUSEPADCTRL */
-			0x08000021, /* EMC_XM2DQSPADCTRL3 */
+			0x0a000021, /* EMC_XM2DQSPADCTRL3 */
 			0x00000802, /* EMC_CTT_TERM_CTRL */
 			0x00020000, /* EMC_ZCAL_INTERVAL */
 			0x00000100, /* EMC_ZCAL_WAIT_CNT */
@@ -3372,7 +3372,7 @@ static const struct tegra_emc_table cardhu_emc_tables_picasso_E2_3G_samsung_1gb[
 			0x00000000, /* EMC_CTT_DURATION */
 			0x800028a5, /* EMC_DYN_SELF_REF_CONTROL */
 			0x0000000a, /* MC_EMEM_ARB_CFG */
-			0x80000079, /* MC_EMEM_ARB_OUTSTANDING_REQ */
+			0xc0000079, /* MC_EMEM_ARB_OUTSTANDING_REQ */
 			0x00000003, /* MC_EMEM_ARB_TIMING_RCD */
 			0x00000004, /* MC_EMEM_ARB_TIMING_RP */
 			0x00000010, /* MC_EMEM_ARB_TIMING_RC */
@@ -4136,7 +4136,7 @@ int cardhu_emc_init(void)
 	case BOARD_PICASSO_2:
 	case BOARD_PICASSO_M:
 	case BOARD_PICASSO_MF:
-		pr_info("################ Picasso2 RAMCODE = %ld #################\n" , RAM_CODE);
+		pr_info("################ Picasso M/MF RAMCODE = %ld #################\n" , RAM_CODE);
 		switch(RAM_CODE){
 			case 0:
 				pr_info("%s: Elpida 1GB memory found\n", __func__);
@@ -4181,15 +4181,15 @@ int cardhu_emc_init(void)
 						break;
 					case BOARD_SKU_3G:
 						pr_info("%s: 3G SKU Samsung 1GB memory found\n", __func__);
-						tegra_init_emc(cardhu_emc_tables_picasso_E2_3G_samsung_1gb,
-								ARRAY_SIZE(cardhu_emc_tables_picasso_E2_3G_samsung_1gb));
+						tegra_init_emc(cardhu_emc_tables_picasso_E2_3G_Elpida_1gb,
+								ARRAY_SIZE(cardhu_emc_tables_picasso_E2_3G_Elpida_1gb));
 						break;
 					}
 				break;
-			default:
-				pr_info("%s: memory not found , using Elpida 1GB memory\n", __func__);
-				tegra_init_emc(cardhu_emc_tables_picasso2_elpida_1gb, ARRAY_SIZE(cardhu_emc_tables_picasso2_elpida_1gb));
-				break;
+	default:
+		pr_info("%s: memory not found , using Elpida 1GB memory\n", __func__);
+		tegra_init_emc(cardhu_emc_tables_picasso2_elpida_1gb, ARRAY_SIZE(cardhu_emc_tables_picasso2_elpida_1gb));
+		break;
 		}
 		break;
 	}

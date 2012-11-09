@@ -4,7 +4,7 @@
  * Copyright (C) 2010 Google, Inc.
  * Author: Erik Gilling <konkers@android.com>
  *
- * Copyright (C) 2010-2011 NVIDIA Corporation
+ * Copyright (c) 2010-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -431,6 +431,8 @@
 #define DC_WIN_LINE_STRIDE			0x70a
 #define  LINE_STRIDE(x)		(x)
 #define  UV_LINE_STRIDE(x)	(((x) & 0xffff) << 16)
+#define  GET_LINE_STRIDE(x)	((x) & 0xffff)
+#define  GET_UV_LINE_STRIDE(x)	(((x) >> 16) & 0xffff)
 #define DC_WIN_BUF_STRIDE			0x70b
 #define DC_WIN_UV_BUF_STRIDE			0x70c
 #define DC_WIN_BUFFER_ADDR_MODE			0x70d
@@ -460,6 +462,12 @@
 
 
 #define DC_WIN_HP_FETCH_CONTROL			0x714
+
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#define DC_WIN_GLOBAL_ALPHA			0x715
+#define  GLOBAL_ALPHA_ENABLE		0x10000
+#endif
+
 #define DC_WINBUF_START_ADDR			0x800
 #define DC_WINBUF_START_ADDR_NS			0x801
 #define DC_WINBUF_START_ADDR_U			0x802
@@ -549,17 +557,11 @@
 #define  SD_MAN_K_G(x)			(((x) & 0x3ff) << 10)
 #define  SD_MAN_K_B(x)			(((x) & 0x3ff) << 20)
 
-#if defined(CONFIG_MACH_PICASSO_MF)
-/* When turn on balance mode, NvCPL set 29 (priority=3, level=5) into aggressiveness.
- * When turn off balance mode, NvCPL set 24 (priority=3, level=0) into aggressiveness.
- * In our design, the didim level should be equal to normal case.
- * So we have to ignore that the setting is from NvCPL,
- * and therefore we decrease the number of priority. */
-#define  NUM_AGG_PRI_LVLS		3
-#else
 #define  NUM_AGG_PRI_LVLS		4
-#endif
 #define  SD_AGG_PRI_LVL(x)		((x) >> 3)
 #define  SD_GET_AGG(x)			((x) & 0x7)
+#if defined(CONFIG_ACER_DIDIM_RULE)
+#define  SD_MAKE_AGG_PRI_LVL(x)		((x) << 3)
+#endif
 
 #endif

@@ -365,7 +365,7 @@ int tegra_pinmux_set_pullupdown(enum tegra_pingroup pg,
 	enum tegra_pullupdown pupd);
 
 #if defined(CONFIG_ARCH_ACER_T30)
-int tegra_pinmux_set_e_input(enum tegra_pingroup pg,
+int tegra_pinmux_set_e_input_bit(enum tegra_pingroup pg,
 	enum tegra_e_input e_input);
 #endif
 void tegra_pinmux_config_table(const struct tegra_pingroup_config *config,

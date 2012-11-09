@@ -238,16 +238,9 @@ void clk_init(struct clk *c)
 static int clk_enable_locked(struct clk *c)
 {
 	int ret = 0;
-	int rate = clk_get_rate_locked(c);
-	bool set_rate = false;
-
-	if (rate > c->max_rate) {
-		rate = c->max_rate;
-		set_rate = true;
-	}
 
 	if (clk_is_auto_dvfs(c)) {
-		ret = tegra_dvfs_set_rate(c, rate);
+		ret = tegra_dvfs_set_rate(c, clk_get_rate_locked(c));
 		if (ret)
 			return ret;
 	}
@@ -258,9 +251,6 @@ static int clk_enable_locked(struct clk *c)
 			if (ret)
 				return ret;
 		}
-
-		if (set_rate)
-			clk_set_rate_locked(c, rate);
 
 		if (c->ops && c->ops->enable) {
 			ret = c->ops->enable(c);
@@ -414,18 +404,6 @@ int clk_set_parent(struct clk *c, struct clk *parent)
 	return ret;
 }
 EXPORT_SYMBOL(clk_set_parent);
-
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
-int clk_set_parent2(struct clk *c, struct clk *parent)
-{
-	int ret = 0;
-
-	ret = clk_set_parent_locked(c, parent);
-
-	return ret;
-}
-EXPORT_SYMBOL(clk_set_parent2);
-#endif
 
 struct clk *clk_get_parent(struct clk *c)
 {
@@ -1300,7 +1278,7 @@ static const struct file_operations possible_rates_fops = {
 
 static int clk_debugfs_register_one(struct clk *c)
 {
-	struct dentry *d, *child, *child_tmp;
+	struct dentry *d;
 
 	d = debugfs_create_dir(c->name, clk_debugfs_root);
 	if (!d)
@@ -1316,6 +1294,10 @@ static int clk_debugfs_register_one(struct clk *c)
 		goto err_out;
 
 	d = debugfs_create_u32("max", S_IRUGO, c->dent, (u32 *)&c->max_rate);
+	if (!d)
+		goto err_out;
+
+	d = debugfs_create_u32("min", S_IRUGO, c->dent, (u32 *)&c->min_rate);
 	if (!d)
 		goto err_out;
 
@@ -1356,10 +1338,7 @@ static int clk_debugfs_register_one(struct clk *c)
 	return 0;
 
 err_out:
-	d = c->dent;
-	list_for_each_entry_safe(child, child_tmp, &d->d_subdirs, d_u.d_child)
-		debugfs_remove(child);
-	debugfs_remove(c->dent);
+	debugfs_remove_recursive(c->dent);
 	return -ENOMEM;
 }
 

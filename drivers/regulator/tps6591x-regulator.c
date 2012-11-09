@@ -171,13 +171,13 @@ static int __tps6591x_ext_control_set(struct device *parent,
 			pr_err("%s(): Error on reading reg 0x%2x, err %d\n",
 				__func__, addr, ret);
 			return ret;
-			}
+		}
 
 		if ((reg_val & mask) != mask) {
 			pr_err("%s(): Error on writing reg 0x%2x, err %d\n",
 				__func__, addr, ret);
 			return -EBUSY;
-			}
+		}
 		reg_val = ri->supply_reg.cache_val;
 		reg_val &= ~0x3;
 
@@ -872,7 +872,6 @@ static int __devinit tps6591x_regulator_probe(struct platform_device *pdev)
 #if defined(CONFIG_MACH_PICASSO_E2)
 	ri->shutdown_state_off = tps_pdata->shutdown_state_off;
 #endif
-
 	if (tps_pdata->slew_rate_uV_per_us)
 		ri->voltage_change_uv_per_us = tps_pdata->slew_rate_uV_per_us;
 
@@ -916,7 +915,6 @@ static void tps6591x_regulator_shutdown(struct platform_device *pdev)
 {
 	struct regulator_dev *rdev = platform_get_drvdata(pdev);
 	struct tps6591x_regulator *ri = rdev_get_drvdata(rdev);
-
 #if defined(CONFIG_MACH_PICASSO_E2)
 	if (ri->shutdown_state_off) {
 		dev_info(&pdev->dev, "Shutting down %s\n",ri->desc.name);
