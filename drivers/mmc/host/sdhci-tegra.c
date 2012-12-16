@@ -337,8 +337,13 @@ static irqreturn_t carddetect_irq(int irq, void *data)
 
 	if (tegra_host->card_present) {
 		if (!tegra_host->is_rail_enabled) {
+#if defined(CONFIG_MACH_PICASSO_E2)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 1);
+#else
 			if (tegra_host->vdd_slot_reg)
 				regulator_enable(tegra_host->vdd_slot_reg);
+#endif
 #if !defined(CONFIG_ARCH_ACER_T30)
 			if (tegra_host->vdd_io_reg)
 				regulator_enable(tegra_host->vdd_io_reg);
@@ -351,8 +356,13 @@ static irqreturn_t carddetect_irq(int irq, void *data)
 			if (tegra_host->vdd_io_reg)
 				regulator_disable(tegra_host->vdd_io_reg);
 #endif
+#if defined(CONFIG_MACH_PICASSO_E2)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 0);
+#else
 			if (tegra_host->vdd_slot_reg)
 				regulator_disable(tegra_host->vdd_slot_reg);
+#endif
 			tegra_host->is_rail_enabled = 0;
                 }
 	}
@@ -942,6 +952,10 @@ static int tegra_sdhci_suspend(struct sdhci_host *sdhci, pm_message_t state)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
 	struct tegra_sdhci_host *tegra_host = pltfm_host->priv;
+#if defined(CONFIG_MACH_PICASSO_E2)
+	struct platform_device *pdev = to_platform_device(mmc_dev(sdhci->mmc));
+	struct tegra_sdhci_platform_data *plat = pdev->dev.platform_data;
+#endif
 
 	tegra_sdhci_set_clock(sdhci, 0);
 
@@ -952,8 +966,13 @@ static int tegra_sdhci_suspend(struct sdhci_host *sdhci, pm_message_t state)
 			if (tegra_host->vdd_io_reg)
 				regulator_disable(tegra_host->vdd_io_reg);
 #endif
+#if defined(CONFIG_MACH_PICASSO_E2)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 0);
+#else
 			if (tegra_host->vdd_slot_reg)
 				regulator_disable(tegra_host->vdd_slot_reg);
+#endif
 			tegra_host->is_rail_enabled = 0;
 		}
 	}
@@ -976,6 +995,10 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
 	struct tegra_sdhci_host *tegra_host = pltfm_host->priv;
+#if defined(CONFIG_MACH_PICASSO_E2)
+	struct platform_device *pdev = to_platform_device(mmc_dev(sdhci->mmc));
+	struct tegra_sdhci_platform_data *plat= pdev->dev.platform_data;
+#endif
 
 #if defined(CONFIG_ARCH_ACER_T30)
 	if (sdhci->mmc->index == 2) {
@@ -986,8 +1009,13 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 	/* Enable the power rails if any */
 	if (tegra_host->card_present) {
 		if (!tegra_host->is_rail_enabled) {
+#if defined(CONFIG_MACH_PICASSO_E2)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 1);
+#else
 			if (tegra_host->vdd_slot_reg)
 				regulator_enable(tegra_host->vdd_slot_reg);
+#endif
 			if (tegra_host->vdd_io_reg) {
 #if !defined(CONFIG_ARCH_ACER_T30)
 				regulator_enable(tegra_host->vdd_io_reg);
@@ -1193,28 +1221,42 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 					"vddio_sdmmc", rc);
 			}
 		}
+#if defined(CONFIG_ARCH_ACER_T30)
+		if (tegra_host->vdd_io_reg)
+			regulator_enable(tegra_host->vdd_io_reg);
+#endif
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+		if (tegra_host->card_present) {
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 1);
+			tegra_host->is_rail_enabled = 1;
+		} else {
+			gpio_set_value(plat->power_gpio, 0);
+		}
+
+		if (host->mmc->index == 0)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 1);
+#else
 		tegra_host->vdd_slot_reg = regulator_get(mmc_dev(host->mmc), plat->slot_rail_name);
 		if (IS_ERR_OR_NULL(tegra_host->vdd_slot_reg)) {
 			dev_info(mmc_dev(host->mmc), "%s regulator not found: %ld."
 				" Assuming vddio_sd_slot is not required.\n",
 					"vddio_sd_slot", PTR_ERR(tegra_host->vdd_slot_reg));
 			tegra_host->vdd_slot_reg = NULL;
-		}
-
-#if defined(CONFIG_ARCH_ACER_T30)
-		if (tegra_host->vdd_io_reg)
-			regulator_enable(tegra_host->vdd_io_reg);
-#endif
-		if (tegra_host->card_present) {
-			if (tegra_host->vdd_slot_reg)
-				regulator_enable(tegra_host->vdd_slot_reg);
+		} else {
+			if (tegra_host->card_present) {
+				if (tegra_host->vdd_slot_reg)
+					regulator_enable(tegra_host->vdd_slot_reg);
 #if !defined(CONFIG_ARCH_ACER_T30)
-			if (tegra_host->vdd_io_reg)
-				regulator_enable(tegra_host->vdd_io_reg);
+				if (tegra_host->vdd_io_reg)
+					regulator_enable(tegra_host->vdd_io_reg);
 #endif
-			tegra_host->is_rail_enabled = 1;
+				tegra_host->is_rail_enabled = 1;
+			}
 		}
+#endif
 	}
 
 	clk = clk_get(mmc_dev(host->mmc), NULL);

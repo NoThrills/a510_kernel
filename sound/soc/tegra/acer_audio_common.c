@@ -129,7 +129,7 @@ void wm8903_event_printf(const char* func, int event)
 {
 #if defined(CONFIG_ARCH_ACER_T30)
 	pr_info("[Audio]:%s = %d, bypass = %d\n", func, SND_SOC_DAPM_EVENT_ON(event),
-			gpio_get_value(audio_data.gpio.bypass_en));
+			(audio_data.gpio.bypass_en != -1)?gpio_get_value(audio_data.gpio.bypass_en):0);
 #else
 	pr_info("[Audio]:%s = %d\n", func, SND_SOC_DAPM_EVENT_ON(event));
 #endif

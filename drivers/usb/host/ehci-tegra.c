@@ -23,6 +23,9 @@
 #include <mach/usb_phy.h>
 #include <mach/iomap.h>
 #include "../../../../arch/arm/mach-tegra/tegra_usb_phy.h"
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/wakelock.h>
+#endif
 
 #if 0
 #define EHCI_DBG(stuff...)	pr_info("ehci-tegra: " stuff)
@@ -47,6 +50,9 @@ struct tegra_ehci_hcd {
 	bool device_connect;
 	bool device_suspend;
 };
+#if defined(CONFIG_ARCH_ACER_T30)
+static struct wake_lock ehci_wake_lock;
+#endif
 
 struct dma_align_buffer {
 	void *kmalloc_ptr;
@@ -140,9 +146,6 @@ static int tegra_ehci_map_urb_for_dma(struct usb_hcd *hcd,
 static void tegra_ehci_unmap_urb_for_dma(struct usb_hcd *hcd,
 	struct urb *urb)
 {
-	usb_hcd_unmap_urb_for_dma(hcd, urb);
-	free_align_buffer(urb);
-
 	if (urb->transfer_dma) {
 		enum dma_data_direction dir;
 		dir = usb_urb_dir_in(urb) ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
@@ -151,6 +154,9 @@ static void tegra_ehci_unmap_urb_for_dma(struct usb_hcd *hcd,
 				urb->transfer_dma, urb->transfer_buffer_length,
 									   DMA_FROM_DEVICE);
 	}
+
+	usb_hcd_unmap_urb_for_dma(hcd, urb);
+	free_align_buffer(urb);
 }
 
 static irqreturn_t tegra_ehci_irq(struct usb_hcd *hcd)
@@ -158,8 +164,31 @@ static irqreturn_t tegra_ehci_irq(struct usb_hcd *hcd)
 	struct tegra_ehci_hcd *tegra = dev_get_drvdata(hcd->self.controller);
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	irqreturn_t irq_status;
+#if defined(CONFIG_ARCH_ACER_T30)
+	int val;
+#endif
 
 	spin_lock(&ehci->lock);
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(tegra->phy->inst != 1){
+		val = check_connect_change(tegra->phy);
+		if(val){
+			if(tegra->device_connect){
+				if(val == detect_plug_out){
+					if(!wake_lock_active(&ehci_wake_lock))
+						wake_lock_timeout(&ehci_wake_lock, 1*HZ);
+						tegra->device_connect = false;
+				}
+			}else{
+				if(val == detect_plug_in){
+					if(!wake_lock_active(&ehci_wake_lock))
+						wake_lock_timeout(&ehci_wake_lock, 2*HZ);
+					tegra->device_connect = true;
+				}
+			}
+		}
+	}
+#endif
 	irq_status = tegra_usb_phy_irq(tegra->phy);
 	if (irq_status == IRQ_NONE) {
 		spin_unlock(&ehci->lock);
@@ -171,6 +200,11 @@ static irqreturn_t tegra_ehci_irq(struct usb_hcd *hcd)
 		spin_unlock(&ehci->lock);
 		return irq_status;
 	}
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(tegra->phy->inst != 1){
+		tegra->device_connect = check_connect_status(tegra->phy);
+	}
+#endif
 	spin_unlock(&ehci->lock);
 
 	EHCI_DBG("%s() cmd = 0x%x, int_sts = 0x%x, portsc = 0x%x\n", __func__,
@@ -345,15 +379,17 @@ static int tegra_ehci_bus_suspend(struct usb_hcd *hcd)
 	EHCI_DBG("%s() BEGIN\n", __func__);
 	mutex_lock(&tegra->sync_lock);
 	tegra->bus_suspended_fail = false;
-	tegra->device_connect = false;
 	err = ehci_bus_suspend(hcd);
-	if (err)
+	if (err){
 		tegra->bus_suspended_fail = true;
-	else{
-		tegra->device_connect = check_connect_status(tegra->phy);
-		if(tegra->device_connect){
+	}else{
+#if defined(CONFIG_ARCH_ACER_T30)
+		if(tegra->phy->inst == 1){
 			tegra_usb_phy_suspend(tegra->phy);
 		}
+#else
+		tegra_usb_phy_suspend(tegra->phy);
+#endif
 	}
 	mutex_unlock(&tegra->sync_lock);
 	EHCI_DBG("%s() END\n", __func__);
@@ -368,7 +404,7 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
 	EHCI_DBG("%s() BEGIN\n", __func__);
 
 	mutex_lock(&tegra->sync_lock);
-	if(tegra->device_suspend)
+	if(tegra->device_suspend || (tegra->phy->inst == 1))
 		tegra_usb_phy_resume(tegra->phy);
 	err = ehci_bus_resume(hcd);
 	mutex_unlock(&tegra->sync_lock);
@@ -470,6 +506,14 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 		goto fail_irq;
 	}
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	tegra->device_suspend = false;
+	tegra->device_connect = false;
+	if(tegra->phy->inst != 1){
+		wake_lock_init(&ehci_wake_lock, WAKE_LOCK_SUSPEND, "tegra-ehci");
+	}
+#endif
+
 	err = tegra_usb_phy_power_on(tegra->phy);
 	if (err) {
 		dev_err(&pdev->dev, "failed to power on the phy\n");
@@ -511,6 +555,11 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 
 fail_phy:
 	tegra_usb_phy_close(tegra->phy);
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(tegra->phy->inst != 1){
+		wake_lock_destroy(&ehci_wake_lock);
+	}
+#endif
 fail_irq:
 	iounmap(hcd->regs);
 fail_io:
@@ -533,10 +582,12 @@ static int tegra_ehci_suspend(struct platform_device *pdev, pm_message_t state)
 	struct tegra_ehci_hcd *tegra = platform_get_drvdata(pdev);
 
 	/* bus suspend could have failed because of remote wakeup resume */
-	if (tegra->bus_suspended_fail)
+	if (tegra->bus_suspended_fail){
 		return -EBUSY;
-	else{
+	}else{
+#if defined(CONFIG_ARCH_ACER_T30)
 		tegra->device_suspend = true;
+#endif
 		return tegra_usb_phy_power_off(tegra->phy);
 	}
 }
@@ -564,11 +615,16 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 	if(!tegra_usb_phy_hw_accessible(tegra->phy))
 		tegra_usb_phy_power_on(tegra->phy);
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(tegra->phy->inst != 1){
+		wake_lock_destroy(&ehci_wake_lock);
+	}
+#endif
 	usb_remove_hcd(hcd);
-	usb_put_hcd(hcd);
 	tegra_usb_phy_power_off(tegra->phy);
 	tegra_usb_phy_close(tegra->phy);
 	iounmap(hcd->regs);
+	usb_put_hcd(hcd);
 
 	return 0;
 }

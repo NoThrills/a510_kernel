@@ -71,10 +71,11 @@ static int tegra_set_avp_device(struct snd_kcontrol *kcontrol,
 			rtd->pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream;
 		if (substream && substream->runtime) {
 			prtd = substream->runtime->private_data;
-			if (prtd->running)
-				return -EBUSY;
-			if (prtd)
+			if (prtd) {
+				if (prtd->running)
+					return -EBUSY;
 				prtd->disable_intr = false;
+			}
 		}
 	}
 
@@ -84,10 +85,11 @@ static int tegra_set_avp_device(struct snd_kcontrol *kcontrol,
 			rtd->pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream;
 		if (substream && substream->runtime) {
 			prtd = substream->runtime->private_data;
-			if (prtd->running)
-				return -EBUSY;
-			if (prtd)
+			if (prtd) {
+				if (prtd->running)
+					return -EBUSY;
 				prtd->disable_intr = true;
+			}
 		}
 	}
 	data->avp_device_id = id;

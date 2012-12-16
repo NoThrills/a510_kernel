@@ -72,7 +72,9 @@ int wake_lock_active(struct wake_lock *lock);
  * number of jiffies until all active wake locks time out.
  */
 long has_wake_lock(int type);
-
+#if defined(CONFIG_ARCH_ACER_T30)
+long print_suspend_active_locks(void);
+#endif
 #else
 
 static inline void wake_lock_init(struct wake_lock *lock, int type,

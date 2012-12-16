@@ -20,6 +20,9 @@
 #include <linux/syscalls.h> /* sys_sync */
 #include <linux/wakelock.h>
 #include <linux/workqueue.h>
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/delay.h>
+#endif
 
 #include "power.h"
 
@@ -44,6 +47,24 @@ enum {
 	SUSPEND_REQUESTED_AND_SUSPENDED = SUSPEND_REQUESTED | SUSPENDED,
 };
 static int state;
+
+#if defined(CONFIG_ARCH_ACER_T30)
+/* create a work queue to monitor the "suspend" thread while DUT enter suspend */
+int early_suspend_is_working = 0;
+
+static void monitor_suspend_wakelock(struct work_struct *work);
+static DECLARE_WORK(monitor_wakelock, monitor_suspend_wakelock);
+struct workqueue_struct *suspend_wakelock_monitored = NULL;
+
+static void monitor_suspend_wakelock(struct work_struct *work)
+{
+	while (1) {
+		msleep(20000);
+		if (!early_suspend_is_working || !print_suspend_active_locks())
+			break;
+	}
+}
+#endif
 
 void register_early_suspend(struct early_suspend *handler)
 {
@@ -154,6 +175,11 @@ void request_suspend_state(suspend_state_t new_state)
 	unsigned long irqflags;
 	int old_sleep;
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	if (suspend_wakelock_monitored == NULL)
+		suspend_wakelock_monitored = create_singlethread_workqueue("monitor_suspend");
+#endif
+
 	spin_lock_irqsave(&state_lock, irqflags);
 	old_sleep = state & SUSPEND_REQUESTED;
 	if (debug_mask & DEBUG_USER_STATE) {
@@ -171,8 +197,16 @@ void request_suspend_state(suspend_state_t new_state)
 	}
 	if (!old_sleep && new_state != PM_SUSPEND_ON) {
 		state |= SUSPEND_REQUESTED;
+#if defined(CONFIG_ARCH_ACER_T30)
+		early_suspend_is_working = 1;
+		queue_work(suspend_wakelock_monitored, &monitor_wakelock);
+#endif
 		queue_work(suspend_work_queue, &early_suspend_work);
 	} else if (old_sleep && new_state == PM_SUSPEND_ON) {
+#if defined(CONFIG_ARCH_ACER_T30)
+		if (early_suspend_is_working)
+			early_suspend_is_working = 0;
+#endif
 		state &= ~SUSPEND_REQUESTED;
 		wake_lock(&main_wake_lock);
 		queue_work(suspend_work_queue, &late_resume_work);

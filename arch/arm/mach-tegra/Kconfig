@@ -134,7 +134,29 @@ config MACH_PICASSO_E2
 	help
 	  Support for Acer Picasso E2 Tablet
 
+config MACH_PICASSO_E3
+	bool "Picasso E3"
+	depends on ARCH_ACER_T30
+	select MACH_PICASSO_E2
+	help
+	  Support for Acer Picasso E3 Tablet
+
+config MACH_HERMES
+	bool "Hermes"
+	depends on ARCH_ACER_T30
+	select MACH_HAS_SND_SOC_TEGRA_WM8903 if SND_SOC
+	select USE_OF
+	help
+	  Support for Acer Hermes Tablet
+
 comment "Tegra board type"
+
+config WITHOUT_BYPASS_SWITCH
+	bool "Remove Bypass Switch"
+	depends on ARCH_ACER_T30 && MACH_PICASSO_E3
+	select MACH_HAS_SND_SOC_TEGRA_WM8903 if SND_SOC
+	help
+	  TI TS5A23157 Analog Switch for Acer
 
 config MACH_HARMONY
        bool "Harmony board"

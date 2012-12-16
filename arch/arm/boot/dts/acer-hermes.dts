@@ -1,0 +1,8 @@
+/dts-v1/;
+
+/include/ "acer-t30.dtsi"
+
+/ {
+	model = "Acer Hermes tablet";
+	compatible = "acer,hermes", "nvidia,tegra30";
+};

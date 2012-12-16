@@ -30,6 +30,10 @@
 
 #include "usb.h"
 
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/wakelock.h>
+#endif
+
 /* if we are in debug mode, always announce new devices */
 #ifdef DEBUG
 #ifndef CONFIG_USB_ANNOUNCE_NEW_DEVICES
@@ -80,7 +84,15 @@ struct usb_hub {
 	struct delayed_work	leds;
 	struct delayed_work	init_work;
 	void			**port_owners;
+#if defined(CONFIG_ARCH_ACER_T30)
+	bool				USB_modem;
+#endif
 };
+
+#if defined(CONFIG_ARCH_ACER_T30)
+static struct wake_lock hub_add_wake_lock_delay;
+static struct wake_lock hub_wake_lock;
+#endif
 
 static inline int hub_is_superspeed(struct usb_device *hdev)
 {
@@ -1267,6 +1279,15 @@ static void hub_disconnect(struct usb_interface *intf)
 	usb_set_intfdata (intf, NULL);
 	hub->hdev->maxchild = 0;
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(!hub->USB_modem){
+		if(!hub->hdev->parent){
+			wake_lock_destroy(&hub_wake_lock);
+			wake_lock_destroy(&hub_add_wake_lock_delay);
+		}
+	}
+#endif
+
 	if (hub->hdev->speed == USB_SPEED_HIGH)
 		highspeed_hubs--;
 
@@ -1357,6 +1378,20 @@ descriptor_error:
 
 	usb_set_intfdata (intf, hub);
 	intf->needs_remote_wakeup = 1;
+
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(hub->hdev->serial && (!strcmp(hub->hdev->serial,"tegra-ehci.1"))){
+		if(!hub->hdev->parent){
+			hub->USB_modem = true;
+		}
+	}else{
+		hub->USB_modem = false;
+		if(!hub->hdev->parent){
+			wake_lock_init(&hub_wake_lock, WAKE_LOCK_SUSPEND, "usbcore-hub");
+			wake_lock_init(&hub_add_wake_lock_delay, WAKE_LOCK_SUSPEND, "usbcore-hub-add-delay");
+		}
+	}
+#endif
 
 	if (hdev->speed == USB_SPEED_HIGH)
 		highspeed_hubs++;
@@ -3587,9 +3622,21 @@ static void hub_events(void)
 				hub_port_warm_reset(hub, i);
 			}
 
+#if defined(CONFIG_ARCH_ACER_T30)
+			if (connect_change){
+				if(!hub->USB_modem){
+					if(!wake_lock_active(&hub_wake_lock)){
+						wake_lock(&hub_wake_lock);
+					}
+				}
+				hub_port_connect_change(hub, i,
+						portstatus, portchange);
+			}
+#else
 			if (connect_change)
 				hub_port_connect_change(hub, i,
 						portstatus, portchange);
+#endif
 		} /* end for i */
 
 		/* deal with hub status changes */
@@ -3621,6 +3668,15 @@ static void hub_events(void)
 						"condition\n");
 			}
 		}
+
+#if defined(CONFIG_ARCH_ACER_T30)
+		if(!hub->USB_modem){
+			if(wake_lock_active(&hub_wake_lock)){
+				wake_lock_timeout(&hub_add_wake_lock_delay, HZ/2);
+				wake_unlock(&hub_wake_lock);
+			}
+		}
+#endif
 
  loop_autopm:
 		/* Balance the usb_autopm_get_interface() above */

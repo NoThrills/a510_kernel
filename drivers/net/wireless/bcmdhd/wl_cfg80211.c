@@ -3536,7 +3536,7 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, struct net_device *ndev,
 	  (act_frm->subtype == P2P_PAF_PROVDIS_REQ))) {
 		wldev_iovar_setint(dev, "mpc", 0);
 	}
-	if (act_frm->subtype == P2P_PAF_GON_RSP)
+	if (act_frm && (act_frm->subtype == P2P_PAF_GON_RSP))
 		retry_cnt = 1;
 	else retry_cnt = WL_ACT_FRAME_RETRY;
 
@@ -4283,10 +4283,12 @@ int wl_cfg80211_sched_scan_start(struct wiphy *wiphy,
 	int i;
 	int ret = 0;
 
-	WL_DBG(("Enter n_match_sets:%d   n_ssids:%d \n",
-		request->n_match_sets, request->n_ssids));
-	WL_DBG(("ssids:%d pno_time:%d pno_repeat:%d pno_freq:%d \n",
-		request->n_ssids, pno_time, pno_repeat, pno_freq_expo_max));
+	if (request != NULL) {
+		WL_DBG(("Enter n_match_sets:%d   n_ssids:%d \n",
+			request->n_match_sets, request->n_ssids));
+		WL_DBG(("ssids:%d pno_time:%d pno_repeat:%d pno_freq:%d \n",
+			request->n_ssids, pno_time, pno_repeat, pno_freq_expo_max));
+	}
 
 #if defined(WL_ENABLE_P2P_IF)
 	/* While GO is operational, PNO is not supported */
@@ -4297,7 +4299,9 @@ int wl_cfg80211_sched_scan_start(struct wiphy *wiphy,
 #endif
 
 	if (!request || !request->n_ssids || !request->n_match_sets) {
-		WL_ERR(("Invalid sched scan req!! n_ssids:%d \n", request->n_ssids));
+		if (request != NULL) {
+			WL_ERR(("Invalid sched scan req!! n_ssids:%d \n", request->n_ssids));
+		}
 		return -EINVAL;
 	}
 

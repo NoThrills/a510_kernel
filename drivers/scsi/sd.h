@@ -1,5 +1,8 @@
 #ifndef _SCSI_DISK_H
 #define _SCSI_DISK_H
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/wakelock.h>
+#endif
 
 /*
  * More than enough for everybody ;)  The huge number of majors
@@ -80,6 +83,10 @@ struct scsi_disk {
 	unsigned	lbpws : 1;
 	unsigned	lbpws10 : 1;
 	unsigned	lbpvpd : 1;
+#if defined(CONFIG_ARCH_ACER_T30)
+	struct wake_lock scsi_disk_wake_lock;
+	struct wake_lock scsi_disk_wake_lock_delay;
+#endif
 };
 #define to_scsi_disk(obj) container_of(obj,struct scsi_disk,dev)
 

@@ -33,12 +33,14 @@
 #include "clock.h"
 #include "cpu-tegra.h"
 #include "dvfs.h"
+
+#if defined(CONFIG_ARCH_ACER_T30)
 #include "gpio-names.h"
 #include "board-acer-t30.h"
-
+extern int acer_board_type;
 #define BATT_LEARN	TEGRA_GPIO_PX6
 #define t30_throttle	95000
-#define init_default	35000
+#endif
 
 static struct tegra_thermal_data *therm;
 static LIST_HEAD(tegra_therm_list);
@@ -235,10 +237,6 @@ static void tegra_thermal_alert_unlocked(void *data)
 	if (tegra_thermal_get_temp_unlocked(&temp_tj, true))
 		return;
 
-	/* Reset temp to default for max CPU frequency during init*/
-	if (temp_tj <= 0)
-		temp_tj = init_default;
-
 	device->get_temp_low(device, &temp_low_dev);
 	temp_low_tj = dev2tj(device, temp_low_dev);
 
@@ -292,12 +290,14 @@ static void tegra_thermal_alert_unlocked(void *data)
 				tj2dev(device, lo_limit_tj),
 				tj2dev(device, hi_limit_tj));
 
+#if defined(CONFIG_ARCH_ACER_T30)
 	/* Stop charging when throttling starts */
-	if(temp_tj >= t30_throttle){
+	if((acer_board_type == BOARD_PICASSO_MF) && (temp_tj >= t30_throttle)){
 		pr_info("%s: Tegra Thermal thorttling begins with temp %ld\n", __func__, temp_tj);
 		gpio_direction_output(BATT_LEARN, 1);
 		throttle_start = true;
 	}
+#endif
 
 #ifdef CONFIG_TEGRA_EDP_LIMITS
 	/* inform edp governor */

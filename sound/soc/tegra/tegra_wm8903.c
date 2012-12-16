@@ -95,7 +95,7 @@ struct acer_audio_data audio_data;
 
 void acer_set_bypass_switch(int state)
 {
-	if (!audio_data.gpio.bypass_en)
+	if (audio_data.gpio.bypass_en == -1)
 		return;
 
 	gpio_set_value(audio_data.gpio.bypass_en, state);
@@ -845,18 +845,6 @@ static int tegra_wm8903_init(struct snd_soc_pcm_runtime *rtd)
 #endif
 
 #if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
-	ret = snd_soc_add_controls(codec, cardhu_controls,
-			ARRAY_SIZE(cardhu_controls));
-	if (ret < 0)
-		return ret;
-	snd_soc_dapm_new_controls(dapm, cardhu_dapm_widgets,
-			ARRAY_SIZE(cardhu_dapm_widgets));
-
-	snd_soc_dapm_add_routes(dapm, cardhu_audio_map,
-			ARRAY_SIZE(cardhu_audio_map));
-#endif
-
-#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
 	audio_data.gpio.debug_en = pdata->gpio_debug_switch_en;
 	/* if debug on, will not enable headset */
 	if (gpio_is_valid(pdata->gpio_hp_det) && !is_debug_on()) {
@@ -1117,6 +1105,13 @@ static __devinit int tegra_wm8903_driver_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, machine);
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	card->controls = cardhu_controls;
+	card->num_controls = ARRAY_SIZE(cardhu_controls);
+
+	card->dapm_widgets = cardhu_dapm_widgets;
+	card->num_dapm_widgets = ARRAY_SIZE(cardhu_dapm_widgets);
+#else
 	if (machine_is_cardhu() || machine_is_ventana()) {
 		card->controls = cardhu_controls;
 		card->num_controls = ARRAY_SIZE(cardhu_controls);
@@ -1130,7 +1125,12 @@ static __devinit int tegra_wm8903_driver_probe(struct platform_device *pdev)
 		card->dapm_widgets = tegra_wm8903_default_dapm_widgets;
 		card->num_dapm_widgets = ARRAY_SIZE(tegra_wm8903_default_dapm_widgets);
 	}
+#endif
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	card->dapm_routes = cardhu_audio_map;
+	card->num_dapm_routes = ARRAY_SIZE(cardhu_audio_map);
+#else
 	if (machine_is_harmony()) {
 		card->dapm_routes = harmony_audio_map;
 		card->num_dapm_routes = ARRAY_SIZE(harmony_audio_map);
@@ -1147,6 +1147,7 @@ static __devinit int tegra_wm8903_driver_probe(struct platform_device *pdev)
 		card->dapm_routes = aebl_audio_map;
 		card->num_dapm_routes = ARRAY_SIZE(aebl_audio_map);
 	}
+#endif
 
 	ret = snd_soc_register_card(card);
 	if (ret) {

@@ -451,6 +451,7 @@ int __init cardhu_pinmux_init(void)
 		tegra_pinmux_config_table(picasso2_pinmux_common, ARRAY_SIZE(picasso2_pinmux_common));
 		break;
 	case BOARD_PICASSO_E2:
+	case BOARD_PICASSO_E3:
 		tegra_pinmux_config_table(picasso_E2_pinmux_common, ARRAY_SIZE(picasso_E2_pinmux_common));
 		break;
 	}
@@ -490,6 +491,7 @@ int __init cardhu_pinmux_init(void)
 					ARRAY_SIZE(cardhu_pinmux_sensor_dvt2));
 		break;
 	case BOARD_PICASSO_E2:
+	case BOARD_PICASSO_E3:
 		switch (acer_board_id) {
 		case BOARD_EVT:
 			if (acer_sku == BOARD_SKU_WIFI)

@@ -24,6 +24,10 @@
 #include "sd.h"
 #include "sd_ops.h"
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+extern int cmd_debug_mask;
+#endif
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -736,7 +740,13 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid, u32 *rocr)
 	 * of the ocr to indicate that we can handle
 	 * block-addressed SDHC cards.
 	 */
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	cmd_debug_mask = 1;
 	err = mmc_send_if_cond(host, ocr);
+	cmd_debug_mask = 0;
+#else
+	err = mmc_send_if_cond(host, ocr);
+#endif
 	if (!err)
 		ocr |= SD_OCR_CCS;
 

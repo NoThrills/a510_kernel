@@ -534,8 +534,10 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 	int bcn_li_dtim = 3;
 	uint roamvar = 1;
 
-	DHD_TRACE(("%s: enter, value = %d in_suspend=%d\n",
-		__FUNCTION__, value, dhd->in_suspend));
+	if (dhd) {
+		DHD_TRACE(("%s: enter, value = %d in_suspend=%d\n",
+			__FUNCTION__, value, dhd->in_suspend));
+	}
 
 	dhd_suspend_lock(dhd);
 	if (dhd && dhd->up) {
@@ -2561,6 +2563,38 @@ dhd_del_if(dhd_info_t *dhd, int ifidx)
 	up(&dhd->thr_sysioc_ctl.sema);
 }
 
+static struct kobject *devInfoWifi_kobj;
+struct net_device *tmp_net_dev;
+
+static ssize_t mac_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char *s = buf;
+	s += sprintf(s, "%02X:%02X:%02X:%02X:%02X:%02X\n",
+	tmp_net_dev->dev_addr[0], tmp_net_dev->dev_addr[1],
+	tmp_net_dev->dev_addr[2], tmp_net_dev->dev_addr[3],
+	tmp_net_dev->dev_addr[4], tmp_net_dev->dev_addr[5]);
+	return (s - buf);
+}
+
+#define debug_attr(_name) \
+	static struct kobj_attribute _name##_attr = { \
+	.attr = { \
+	.name = __stringify(_name), \
+	.mode = 0644, \
+	}, \
+	.show = _name##_show, \
+	}
+debug_attr(mac);
+
+static struct attribute * wifi_group[] = {
+	&mac_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_wifi_group = {
+	.attrs = wifi_group,
+};
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31))
 static struct net_device_ops dhd_ops_pri = {
        .ndo_open = dhd_open,
@@ -2584,6 +2618,7 @@ static struct net_device_ops dhd_ops_virt = {
 dhd_pub_t *
 dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen, void *dev)
 {
+	int error;
 	dhd_info_t *dhd = NULL;
 	struct net_device *net = NULL;
 
@@ -2785,6 +2820,14 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen, void *dev)
 
 	dhd_state |= DHD_ATTACH_STATE_DONE;
 	dhd->dhd_state = dhd_state;
+	devInfoWifi_kobj = kobject_create_and_add("dev-info_wifi", NULL);
+	if (devInfoWifi_kobj == NULL)
+		DHD_ERROR(("## %s, kobject_create_and_add failed\n", __FUNCTION__));
+	error = sysfs_create_group(devInfoWifi_kobj, &attr_wifi_group);
+	if (error)
+		DHD_ERROR(("## %s, sysfs_create_group failed\n", __FUNCTION__));
+	else
+		tmp_net_dev = net;
 	return &dhd->pub;
 
 fail:

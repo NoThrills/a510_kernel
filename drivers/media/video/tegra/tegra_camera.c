@@ -135,12 +135,21 @@ static int tegra_camera_clk_set_rate(struct tegra_camera_dev *dev)
 	struct tegra_camera_clk_info *info = &dev->info;
 	unsigned long parent_rate, parent_div_rate, parent_div_rate_pre;
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	if (!info) {
+		dev_err(dev->dev,
+				"%s: no clock info\n",
+				__func__);
+		return -EINVAL;
+	}
+#else
 	if (!info) {
 		dev_err(dev->dev,
 				"%s: no clock info %d\n",
 				__func__, info->id);
 		return -EINVAL;
 	}
+#endif
 
 	if (info->id != TEGRA_CAMERA_MODULE_VI &&
 		info->id != TEGRA_CAMERA_MODULE_EMC) {

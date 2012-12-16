@@ -58,6 +58,7 @@
 #define DC_COM_PIN_OUTPUT_POLARITY1_INIT_VAL	0x01000000
 #define DC_COM_PIN_OUTPUT_POLARITY3_INIT_VAL	0x0
 
+#if defined(CONFIG_TEGRA_HDMI)
 static struct fb_videomode tegra_dc_hdmi_fallback_mode = {
 	.refresh = 60,
 	.xres = 640,
@@ -72,6 +73,7 @@ static struct fb_videomode tegra_dc_hdmi_fallback_mode = {
 	.vmode = 0,
 	.sync = 0,
 };
+#endif
 
 static struct tegra_dc_mode override_disp_mode[3];
 
@@ -2077,6 +2079,7 @@ static int __init tegra_dc_mode_override(char *str)
 	if (!p || !*p)
 		return -EINVAL;
 
+#if defined(CONFIG_TEGRA_HDMI)
 	p = strstr(str, "hdmi:");
 	if (p) {
 		p += 5;
@@ -2084,6 +2087,7 @@ static int __init tegra_dc_mode_override(char *str)
 		if (parse_disp_params(options, &override_disp_mode[TEGRA_DC_OUT_HDMI]))
 			return -EINVAL;
 	}
+#endif
 
 	p = strstr(str, "rgb:");
 	if (p) {

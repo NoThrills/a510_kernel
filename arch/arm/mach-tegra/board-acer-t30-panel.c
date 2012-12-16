@@ -23,7 +23,11 @@
 #define LVDS_SHUTDOWN      TEGRA_GPIO_PC6    /* (AN25/LCD_PWR2/LVDS_SHTD)     */
 #define LCD_VDD            TEGRA_GPIO_PB1    /* (N9/GMI_A18/EN_VDDLCD_T30S)   */
 #define LCD_CABC           TEGRA_GPIO_PH3    /* (J1/GMI_AD11/LCD_DCR)         */
+#if defined(CONFIG_MACH_HERMES)
+#define BL_ENABLE          TEGRA_GPIO_PN6
+#else
 #define BL_ENABLE          TEGRA_GPIO_PH1    /* (E1/GMI_AD9/DISPOFF#)         */
+#endif
 #define BL_PWM             TEGRA_GPIO_PH0    /* (G3/GMI_AD8/LCD_PWM_OUT )     */
 #if defined(CONFIG_TEGRA_HDMI)
 #define HDMI_HPD           TEGRA_GPIO_PN7    /* (AN23/HDMI_INT/HDMI_DET_T30S) */
@@ -58,7 +62,7 @@ static int acer_backlight_init(struct device *dev)
 static void acer_backlight_exit(struct device *dev)
 {
 	gpio_set_value(BL_ENABLE, 0);
-	if (acer_board_type == BOARD_PICASSO_E2) {
+	if ((acer_board_type == BOARD_PICASSO_E2) || (acer_board_type == BOARD_PICASSO_E3)) {
 		msleep(100);
 	} else {
 		msleep(200);
@@ -653,7 +657,7 @@ int __init acer_panel_init(void)
 			ARRAY_SIZE(acer_gfx_devices));
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
-	if ((acer_board_type == BOARD_PICASSO_M) || (acer_board_type == BOARD_PICASSO_E2)) {
+	if ((acer_board_type == BOARD_PICASSO_M) || (acer_board_type == BOARD_PICASSO_E2) || (acer_board_type == BOARD_PICASSO_E3)) {
 		res = nvhost_get_resource_byname(&acer_pm_disp1_device,
 				IORESOURCE_MEM, "fbmem");
 	}else{
@@ -670,7 +674,7 @@ int __init acer_panel_init(void)
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
 	if(!err){
-		if ((acer_board_type == BOARD_PICASSO_M) || (acer_board_type == BOARD_PICASSO_E2)) {
+		if ((acer_board_type == BOARD_PICASSO_M) || (acer_board_type == BOARD_PICASSO_E2) || (acer_board_type == BOARD_PICASSO_E3)) {
 			err = nvhost_device_register(&acer_pm_disp1_device);
 		}else{
 			err = nvhost_device_register(&acer_p2_disp1_device);

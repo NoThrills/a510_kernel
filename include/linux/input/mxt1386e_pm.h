@@ -15,11 +15,10 @@ extern int acer_board_type;
 #define MXT_MAX_REPORTED_PRESSURE             255
 #define MXT_MAX_TOUCH_SIZE                    255
 
-#define Firmware_Number                       4099
-#define ConfigChecksum                        5522910  /* 5445DE */
 #define Chip_Vendor                           "AT"
 #define Reseved_Chip_Vendor                   "0"
-#define ConfigVersion                         1180451  /* 120323 */
+#define ConfigChecksum                        3780549  /* 39AFC5 */
+#define ConfigVersion                         1183762  /* 121012 */
 #define Reseved_Firmware_Info                 0
 #define Reseved_ConfigVersion                 0
 #define Reservedinfo                          0
@@ -38,14 +37,14 @@ enum {
 #define TOUCH_SENSITIVITY_SYMBOL_DEFAULT TOUCH_SENSITIVITY_SYMBOL_MEDIUM
 
 /* GEN_POWERCONFIG_T7 INSTANCE 0 */
-u8 T07OBJ[3]  = {  50, 255,  10};
+u8 T07OBJ[3]  = {  15, 255,  10};
 
 /* GEN_ACQUISITIONCONFIG_T8 INSTANCE 0 */
-u8 T08OBJ[10] = {  26,   0,  10,  10,   0,   0,   5,  17,  15,   0};
+u8 T08OBJ[10] = {  26,   0,  10,  10,   0,   0,   5,  40,  15, -52};
 
 /* TOUCH_MULTITOUCHSCREEN_T9 INSTATNCE 0 */
-u8 T09OBJ[35] = { 131,   0,   0,  30,  42,   0,  16,  80,   4,   5,
-                   10,   5,   2,   0,  10,  15,  15,  10,  31,   3,
+u8 T09OBJ[35] = { 131,   0,   0,  30,  42,   0,  16,  70,   2,   5,
+                   10,   5,   1,  33,  10,  15,  15,  10,  31,   3,
                   255,   4,   0,   0,   0,   0,   0,   0,  64,   0,
                    15,  25,   0,   0,   0};
 
@@ -107,29 +106,11 @@ u8 T56OBJ[43] = {   1,   0,   1,  48,  21,  21,  21,  21,  21,  21,
 struct sensitivity_mapping {
 	int symbol;
 	u8 value;
-	u32 checksum_config;
 };
 
-struct sensitvity_ver_mapping {
-	int Check_ConfigVersion;
-	struct sensitivity_mapping *sens_ver_mapping;
+static struct sensitivity_mapping sensitivity_table[] = {
+	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           65},
+	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         70},
+	{TOUCH_SENSITIVITY_SYMBOL_LOW,            75},
 };
-
-static struct sensitivity_mapping v01_sensitivity_table[] = {
-	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           83,     365254},
-	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         85,    3510726},
-	{TOUCH_SENSITIVITY_SYMBOL_LOW,            87,   10850511},
-};
-
-static struct sensitivity_mapping v02_sensitivity_table[] = {
-	{TOUCH_SENSITIVITY_SYMBOL_HIGH,           65,   14437726},
-	{TOUCH_SENSITIVITY_SYMBOL_MEDIUM,         80,    5522910},
-	{TOUCH_SENSITIVITY_SYMBOL_LOW,            85,    8144734},
-};
-
-static struct sensitvity_ver_mapping sensitivity_ver_table[] = {
-	{ 1180417, v01_sensitivity_table},
-	{ 1180451, v02_sensitivity_table},
-};
-
 #endif /* _LINUX_MXT1386E_PM_H */

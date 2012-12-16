@@ -47,6 +47,10 @@
 
 #define MAX_TUNING_LOOP 40
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+int cmd_debug_mask = 0;
+#endif
+
 static unsigned int debug_quirks = 0;
 
 static void sdhci_finish_data(struct sdhci_host *);
@@ -2107,11 +2111,30 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 		return;
 	}
 
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	if (intmask & SDHCI_INT_TIMEOUT) {
+		host->cmd->error = -ETIMEDOUT;
+		if (host->mmc && host->mmc->card && !cmd_debug_mask) {
+			printk(KERN_ERR "%s: CMD_TIME_OUT for CMD%d .\n",
+			mmc_hostname(host->mmc), host->mrq->cmd->opcode);
+			sdhci_dumpregs(host);
+		}
+	} else if (intmask & (SDHCI_INT_CRC | SDHCI_INT_END_BIT |
+			SDHCI_INT_INDEX)) {
+		host->cmd->error = -EILSEQ;
+		if (intmask & (SDHCI_INT_CRC)) {
+			printk(KERN_ERR "%s: CMD_CRC_ERR for CMD%d .\n",
+			mmc_hostname(host->mmc), host->mrq->cmd->opcode);
+			sdhci_dumpregs(host);
+		}
+	}
+#else
 	if (intmask & SDHCI_INT_TIMEOUT)
 		host->cmd->error = -ETIMEDOUT;
 	else if (intmask & (SDHCI_INT_CRC | SDHCI_INT_END_BIT |
 			SDHCI_INT_INDEX))
 		host->cmd->error = -EILSEQ;
+#endif
 
 	if (host->cmd->error) {
 		tasklet_schedule(&host->finish_tasklet);
@@ -2207,6 +2230,20 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 
 		return;
 	}
+#if defined(CONFIG_ARCH_ACER_T20) || defined(CONFIG_ARCH_ACER_T30)
+	if (intmask & SDHCI_INT_DATA_TIMEOUT) {
+		printk(KERN_ERR "%s: DATA_TIME_OUT for CMD%d .\n",
+		mmc_hostname(host->mmc), host->mrq->cmd->opcode);
+		sdhci_dumpregs(host);
+	}
+	if ((intmask & SDHCI_INT_DATA_CRC) &&
+		SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND)
+			!= MMC_BUS_TEST_R)) {
+		printk(KERN_ERR "%s: DATA_CRC_ERROR for CMD%d .\n",
+                        mmc_hostname(host->mmc), host->mrq->cmd->opcode);
+		sdhci_dumpregs(host);
+	}
+#endif
 
 	if (intmask & SDHCI_INT_DATA_TIMEOUT)
 		host->data->error = -ETIMEDOUT;
@@ -2471,10 +2508,16 @@ int sdhci_resume_host(struct sdhci_host *host)
 	}
 #if defined(CONFIG_ARCH_ACER_T30)
 	if (ret) {
+		ret = 0;
 		tegra_host->card_present = 0;
 		if (tegra_host->is_rail_enabled) {
+#if defined(CONFIG_MACH_PICASSO_E2)
+			if (gpio_is_valid(plat->power_gpio))
+				gpio_set_value(plat->power_gpio, 0);
+#else
 			if (tegra_host->vdd_slot_reg)
 				regulator_disable(tegra_host->vdd_slot_reg);
+#endif
 			tegra_host->is_rail_enabled = 0;
 		}
 	}
@@ -2483,8 +2526,13 @@ int sdhci_resume_host(struct sdhci_host *host)
 			printk(KERN_INFO "%s was inserted in suspend mode !!\n", mmc_hostname(host->mmc));
 			tegra_host->card_present = 1;
 			if (!tegra_host->is_rail_enabled) {
+#if defined(CONFIG_MACH_PICASSO_E2)
+				if (gpio_is_valid(plat->power_gpio))
+					gpio_set_value(plat->power_gpio, 1);
+#else
 				if (tegra_host->vdd_slot_reg)
 					regulator_enable(tegra_host->vdd_slot_reg);
+#endif
 				tegra_host->is_rail_enabled = 1;
 			}
 		}

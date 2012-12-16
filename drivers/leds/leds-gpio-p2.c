@@ -25,7 +25,7 @@ static int already_LED_ON = 0;
 #endif
 
 #define LED_DELAY_TIME 5000
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_BATTERY_BQ27541)
 #define BATTERY_LEVEL	1
 #define BATTERY_STATUS	2
 
@@ -34,7 +34,7 @@ extern int bq27541_battery_check(int);
 
 static void gpio_led_early_suspend(struct early_suspend *h)
 {
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_BATTERY_BQ27541)
 	int battery_status;
 
 	cancel_delayed_work(&gpio_led_wq);
@@ -73,7 +73,7 @@ static void gpio_led_late_resume(struct early_suspend *h)
 
 static void gpio_led_work_func(struct work_struct *work)
 {
-#if defined(CONFIG_ARCH_ACER_T30)
+#if defined(CONFIG_BATTERY_BQ27541)
 	int battery_status;
 
 	battery_status = bq27541_battery_check(BATTERY_STATUS);

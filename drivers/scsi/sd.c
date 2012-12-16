@@ -62,6 +62,9 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_ioctl.h>
 #include <scsi/scsicam.h>
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/wakelock.h>
+#endif
 
 #include "sd.h"
 #include "scsi_logging.h"
@@ -126,6 +129,10 @@ static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
 	"write back, no read (daft)"
 };
+
+#if defined(CONFIG_ARCH_ACER_T30)
+static DEFINE_MUTEX(sd_probe_mutex);
+#endif
 
 static ssize_t
 sd_store_cache_type(struct device *dev, struct device_attribute *attr,
@@ -2492,6 +2499,10 @@ static void sd_probe_async(void *data, async_cookie_t cookie)
 	u32 index;
 	struct device *dev;
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	mutex_lock(&sd_probe_mutex);
+	wake_lock(&sdkp->scsi_disk_wake_lock);
+#endif
 	sdp = sdkp->device;
 	gd = sdkp->disk;
 	index = sdkp->index;
@@ -2536,6 +2547,11 @@ static void sd_probe_async(void *data, async_cookie_t cookie)
 		  sdp->removable ? "removable " : "");
 	scsi_autopm_put_device(sdp);
 	put_device(&sdkp->dev);
+#if defined(CONFIG_ARCH_ACER_T30)
+	wake_lock_timeout(&sdkp->scsi_disk_wake_lock_delay, HZ/2);
+	wake_unlock(&sdkp->scsi_disk_wake_lock);
+	mutex_unlock(&sd_probe_mutex);
+#endif
 }
 
 /**
@@ -2628,6 +2644,10 @@ static int sd_probe(struct device *dev)
 	dev_set_drvdata(dev, sdkp);
 
 	get_device(&sdkp->dev);	/* prevent release before async_schedule */
+#if defined(CONFIG_ARCH_ACER_T30)
+	wake_lock_init(&sdkp->scsi_disk_wake_lock, WAKE_LOCK_SUSPEND, "scsi_disk_enum_lock");
+	wake_lock_init(&sdkp->scsi_disk_wake_lock_delay, WAKE_LOCK_SUSPEND, "scsi_disk_enum_lock_delay");
+#endif
 	async_schedule(sd_probe_async, sdkp);
 
 	return 0;
@@ -2668,6 +2688,10 @@ static int sd_remove(struct device *dev)
 	device_del(&sdkp->dev);
 	del_gendisk(sdkp->disk);
 	sd_shutdown(dev);
+#if defined(CONFIG_ARCH_ACER_T30)
+	wake_lock_destroy(&sdkp->scsi_disk_wake_lock);
+	wake_lock_destroy(&sdkp->scsi_disk_wake_lock_delay);
+#endif
 
 	mutex_lock(&sd_ref_mutex);
 	dev_set_drvdata(dev, NULL);

@@ -798,7 +798,11 @@ static struct tegra_asoc_platform_data cardhu_audio_wm8903_pdata = {
 	.gpio_hp_mute		= -1,
 	.gpio_int_mic_en	= -1,
 	.gpio_ext_mic_en	= -1,
+#ifdef CONFIG_WITHOUT_BYPASS_SWITCH
+	.gpio_bypass_switch_en	= -1,
+#else
 	.gpio_bypass_switch_en	= TEGRA_GPIO_BYPASS_SWITCH_EN,
+#endif
 	.gpio_debug_switch_en   = TEGRA_GPIO_DEBUG_SWITCH_EN,
 	.i2s_param[HIFI_CODEC]  = {
 		.audio_port_id  = 0,
@@ -874,9 +878,7 @@ static struct i2c_board_info __initdata ft5816_i2c_info[] = {
 		.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PJ0),
 	},
 };
-#endif
-
-#if defined(CONFIG_TOUCHSCREEN_ATMEL_MXT1386E)
+#else
 static struct i2c_board_info __initdata atmel_i2c_info[] = {
 	{
 		I2C_BOARD_INFO("maXTouch", 0X4C),
@@ -1223,6 +1225,10 @@ static void acer_board_info(void) {
 		pr_info("Board Type: Picasso MF\n");
 	else if (acer_board_type == BOARD_PICASSO_E2)
 		pr_info("Board Type: Picasso E2\n");
+	else if (acer_board_type == BOARD_PICASSO_E3)
+		pr_info("Board Type: Picasso E3\n");
+	else if (acer_board_type == BOARD_HERMES)
+		pr_info("Board Type: Hermes\n");
 	else
 		pr_info("Board Type: not support (%d)\n", acer_board_type);
 
@@ -1279,6 +1285,7 @@ static void __init tegra_cardhu_init(void)
 				ARRAY_SIZE(throttle_list));
 	tegra_clk_init_from_table(cardhu_clk_init_table);
 	cardhu_pinmux_init();
+	gpio_unused_init();
 	tegra_booting_info();
 	cardhu_i2c_init();
 	cardhu_spi_init();
@@ -1341,11 +1348,16 @@ static void __init tegra_cardhu_reserve(void)
 	tegra_ram_console_debug_reserve(SZ_1M);
 }
 
+static const char *hermes_dt_board_compat[] = {
+	"acer,hermes",
+	NULL
+};
+
 MACHINE_START(PICASSO2, "picasso2")
 	.boot_params    = 0x80000100,
 	.map_io         = tegra_map_common_io,
 	.reserve        = tegra_cardhu_reserve,
-	.init_early	= tegra_init_early,
+	.init_early     = tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_cardhu_init,
@@ -1355,7 +1367,7 @@ MACHINE_START(PICASSO_M, "picasso_m")
 	.boot_params    = 0x80000100,
 	.map_io         = tegra_map_common_io,
 	.reserve        = tegra_cardhu_reserve,
-	.init_early	= tegra_init_early,
+	.init_early     = tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_cardhu_init,
@@ -1365,7 +1377,7 @@ MACHINE_START(PICASSO_MF, "picasso_mf")
 	.boot_params    = 0x80000100,
 	.map_io         = tegra_map_common_io,
 	.reserve        = tegra_cardhu_reserve,
-	.init_early	= tegra_init_early,
+	.init_early     = tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_cardhu_init,
@@ -1375,8 +1387,29 @@ MACHINE_START(PICASSO_E2, "picasso_e2")
 	.boot_params    = 0x80000100,
 	.map_io         = tegra_map_common_io,
 	.reserve        = tegra_cardhu_reserve,
-	.init_early	= tegra_init_early,
+	.init_early     = tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_cardhu_init,
+MACHINE_END
+
+MACHINE_START(PICASSO_E3, "picasso_e3")
+	.boot_params    = 0x80000100,
+	.map_io         = tegra_map_common_io,
+	.reserve        = tegra_cardhu_reserve,
+	.init_early     = tegra_init_early,
+	.init_irq       = tegra_init_irq,
+	.timer          = &tegra_timer,
+	.init_machine   = tegra_cardhu_init,
+MACHINE_END
+
+DT_MACHINE_START(HERMES, "hermes")
+	.boot_params    = 0x80000100,
+	.map_io         = tegra_map_common_io,
+	.reserve        = tegra_cardhu_reserve,
+	.init_early     = tegra_init_early,
+	.init_irq       = tegra_init_irq,
+	.timer          = &tegra_timer,
+	.init_machine   = tegra_cardhu_init,
+	.dt_compat      = hermes_dt_board_compat,
 MACHINE_END

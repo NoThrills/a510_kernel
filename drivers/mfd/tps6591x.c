@@ -129,6 +129,49 @@ struct tps6591x {
 	u8			mask_reg[3];
 };
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+static struct kobject *pmic_dev_info_kobj;
+static int version_num;
+
+static ssize_t CHIP_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char *s = buf;
+	s += sprintf(s, "TPS6591x\n");
+	return (s - buf);
+}
+
+static ssize_t VERSION_show(struct kobject *kobj, struct kobj_attribute *attr, char * buf)
+{
+	char *s = buf;
+
+	s += sprintf(s, "version : 0%d\n", version_num);
+	return (s - buf);
+}
+
+#define debug_attr(_name, _mode) \
+	static struct kobj_attribute _name##_attr = { \
+	.attr = { \
+	.name = __stringify(_name), \
+	.mode = _mode, \
+	}, \
+	.show = _name##_show, \
+	}
+
+debug_attr(CHIP, 0644);
+debug_attr(VERSION, 0644);
+
+static struct attribute * group[] = {
+	&VERSION_attr.attr,
+	&CHIP_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group =
+{
+	.attrs = group,
+};
+#endif
+
 static inline int __tps6591x_read(struct i2c_client *client,
 				  int reg, uint8_t *val)
 {
@@ -312,7 +355,7 @@ static void tps6591x_power_off(void)
 	ret = i2c_smbus_write_byte_data(tps6591x_i2c_client, TPS6591X_INT_MSK, 0xFF);
 	if (ret < 0) {
 		dev_err(&tps6591x_i2c_client->dev, "Mask RTC ALARM interrupt failed %d.\n", ret);
-		return -EIO;
+		return;
 	}
 
 	pr_info("%s(): Setting power off seq\n", __func__);
@@ -850,6 +893,9 @@ static int __devinit tps6591x_i2c_probe(struct i2c_client *client,
 		return -EIO;
 	}
 
+#if defined(CONFIG_MACH_PICASSO_E2)
+	version_num = ret;
+#endif
 	dev_info(&client->dev, "VERNUM is %02x\n", ret);
 
 #if defined(CONFIG_ARCH_ACER_T30)
@@ -881,6 +927,20 @@ static int __devinit tps6591x_i2c_probe(struct i2c_client *client,
 		dev_err(&client->dev, "add devices failed: %d\n", ret);
 		goto err_add_devs;
 	}
+
+#if defined(CONFIG_MACH_PICASSO_E2)
+	pmic_dev_info_kobj = kobject_create_and_add("dev-info_pmic", NULL);
+	if (pmic_dev_info_kobj == NULL)
+	{
+		dev_err(&client->dev,"%s: subsystem_register failed\n", __FUNCTION__);
+	}
+	ret = sysfs_create_group(pmic_dev_info_kobj, &attr_group);
+
+	if(ret)
+	{
+		dev_err(&client->dev,"%s: sysfs_create_group failed, %d\n", __FUNCTION__, __LINE__);
+	}
+#endif
 
 	tps6591x_gpio_init(tps6591x, pdata);
 

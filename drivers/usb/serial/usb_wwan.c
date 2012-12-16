@@ -213,6 +213,10 @@ int usb_wwan_write(struct tty_struct *tty, struct usb_serial_port *port,
 	struct urb *this_urb = NULL;	/* spurious */
 	int err;
 	unsigned long flags;
+#if defined(CONFIG_ARCH_ACER_T30)
+	struct usb_interface *intf;
+	struct device *dev;
+#endif
 
 	portdata = usb_get_serial_port_data(port);
 	intfdata = port->serial->private;
@@ -221,6 +225,13 @@ int usb_wwan_write(struct tty_struct *tty, struct usb_serial_port *port,
 
 	i = 0;
 	left = count;
+
+#if defined(CONFIG_ARCH_ACER_T30)
+	intf = port->serial->interface;
+	dev = &intf->dev;
+	if (dev->power.disable_depth > 0)
+		goto _out;
+#endif
 	for (i = 0; left > 0 && i < N_OUT_URB; i++) {
 		todo = left;
 		if (todo > OUT_BUFLEN)
@@ -238,8 +249,10 @@ int usb_wwan_write(struct tty_struct *tty, struct usb_serial_port *port,
 		    usb_pipeendpoint(this_urb->pipe), i);
 
 		err = usb_autopm_get_interface_async(port->serial->interface);
-		if (err < 0)
+		if (err < 0) {
+			printk(KERN_INFO "%s(%d), runtime pm not ready\n", __func__, __LINE__);
 			break;
+		}
 
 		/* send the data */
 		memcpy(this_urb->transfer_buffer, buf, todo);
@@ -270,7 +283,9 @@ int usb_wwan_write(struct tty_struct *tty, struct usb_serial_port *port,
 		buf += todo;
 		left -= todo;
 	}
-
+#if defined(CONFIG_ARCH_ACER_T30)
+_out:
+#endif
 	count -= left;
 	dbg("%s: wrote (did %d)", __func__, count);
 	return count;
@@ -526,7 +541,9 @@ static void usb_wwan_setup_urbs(struct usb_serial *serial)
 		}
 	}
 }
-
+#if defined(CONFIG_ARCH_ACER_T30)
+void irq_work(struct work_struct *work);
+#endif
 int usb_wwan_startup(struct usb_serial *serial)
 {
 	int i, j, err;
@@ -535,7 +552,9 @@ int usb_wwan_startup(struct usb_serial *serial)
 	u8 *buffer;
 
 	dbg("%s", __func__);
-
+#if defined(CONFIG_ARCH_ACER_T30)
+	INIT_DELAYED_WORK(&serial->work, irq_work);
+#endif
 	/* Now setup per port private data */
 	for (i = 0; i < serial->num_ports; i++) {
 		port = serial->port[i];
@@ -704,6 +723,43 @@ static void play_delayed(struct usb_serial_port *port)
 		}
 	}
 }
+#if defined(CONFIG_ARCH_ACER_T30)
+void irq_work(struct work_struct *work)
+{
+	int i, delay_count = 0;
+	struct usb_serial_port *port;
+	struct usb_serial *serial=
+		container_of(work, struct usb_serial, work);
+	struct usb_wwan_port_private *portdata;
+	struct usb_interface *intf;
+	struct device *dev;
+
+	intf = serial->port[serial->num_ports - 1]->serial->interface;
+	dev = &intf->dev;
+
+	dbg("%s entered", __func__);
+	while(dev->power.disable_depth > 0) {
+		dbg("%s wait modem ready", __func__);
+		mdelay(30);
+		delay_count++;
+		if(delay_count > 30) {
+			printk(KERN_INFO "%s delay for 30 times", __func__);
+			return;
+		}
+	}
+
+	dbg("%s modem is ready", __func__);
+	for (i = 0; i < serial->num_ports; i++) {
+		/* walk all ports */
+		port = serial->port[i];
+		portdata = usb_get_serial_port_data(port);
+		if (!portdata->opened) {
+			continue;
+		}
+		usb_serial_port_softint(port);
+	}
+}
+#endif
 
 int usb_wwan_resume(struct usb_serial *serial)
 {
@@ -759,6 +815,9 @@ int usb_wwan_resume(struct usb_serial *serial)
 	spin_lock_irq(&intfdata->susp_lock);
 	intfdata->suspended = 0;
 	spin_unlock_irq(&intfdata->susp_lock);
+#if defined(CONFIG_ARCH_ACER_T30)
+	schedule_delayed_work(&serial->work, 1*HZ/1000);
+#endif
 err_out:
 	return err;
 }

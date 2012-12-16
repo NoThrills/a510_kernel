@@ -7,6 +7,8 @@
  * Copyright (C) 2008 Fabio Checconi <fabio@gandalf.sssup.it>
  *		      Paolo Valente <paolo.valente@unimore.it>
  *
+ * Copyright (C) 2010 Paolo Valente <paolo.valente@unimore.it>
+ *
  * Licensed under the GPL-2 as detailed in the accompanying COPYING.BFQ file.
  *
  * BFQ is a proportional share disk scheduling algorithm based on the
@@ -63,23 +65,23 @@
 #include "bfq.h"
 
 /* Max number of dispatches in one round of service. */
-static const int bfq_quantum = 5;
+static const int bfq_quantum = 4;
 
 /* Expiration time of sync (0) and async (1) requests, in jiffies. */
-static const int bfq_fifo_expire[2] = { HZ / 8, HZ / 16 };
+static const int bfq_fifo_expire[2] = { HZ / 4, HZ / 8 };
 
 /* Maximum backwards seek, in KiB. */
-static const int bfq_back_max = (16 * 1024) + 512;
+static const int bfq_back_max = 16 * 1024;
 
 /* Penalty of a backwards seek, in number of sectors. */
-static const int bfq_back_penalty = 1;
+static const int bfq_back_penalty = 2;
 
 /* Idling period duration, in jiffies. */
 static int bfq_slice_idle = HZ / 125;
 
 /* Default maximum budget values, in sectors and number of requests. */
-static const int bfq_default_max_budget = (16 * 1024) + 512;
-static const int bfq_max_budget_async_rq = 5;
+static const int bfq_default_max_budget = 16 * 1024;
+static const int bfq_max_budget_async_rq = 4;
 
 /*
  * Async to sync throughput distribution is controlled as follows:
@@ -141,6 +143,8 @@ static DEFINE_IDA(cic_index_ida);
 #define RQ_CIC(rq)		\
 	((struct cfq_io_context *) (rq)->elevator_private[0])
 #define RQ_BFQQ(rq)		((rq)->elevator_private[1])
+
+static inline void bfq_schedule_dispatch(struct bfq_data *bfqd);
 
 #include "bfq-ioc.c"
 #include "bfq-sched.c"
@@ -853,7 +857,7 @@ static inline unsigned long bfq_max_budget(struct bfq_data *bfqd)
 static inline unsigned long bfq_min_budget(struct bfq_data *bfqd)
 {
 	if (bfqd->budgets_assigned < 194)
-		return bfq_default_max_budget;
+		return bfq_default_max_budget / 32;
 	else
 		return bfqd->bfq_max_budget / 32;
 }
@@ -2763,6 +2767,8 @@ static ssize_t bfq_weights_show(struct elevator_queue *e, char *page)
 	struct bfq_data *bfqd = e->elevator_data;
 	ssize_t num_char = 0;
 
+	spin_lock_irq(bfqd->queue->queue_lock);
+
 	num_char += sprintf(page + num_char, "Active:\n");
 	list_for_each_entry(bfqq, &bfqd->active_list, bfqq_list) {
 		num_char += sprintf(page + num_char,
@@ -2783,6 +2789,9 @@ static ssize_t bfq_weights_show(struct elevator_queue *e, char *page)
 					bfqq->last_rais_start_finish),
 				jiffies_to_msecs(bfqq->raising_cur_max_time));
 	}
+
+	spin_unlock_irq(bfqd->queue->queue_lock);
+
 	return num_char;
 }
 

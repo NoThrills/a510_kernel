@@ -62,6 +62,10 @@
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
+#if defined(CONFIG_ARCH_ACER_T30)
+#include <linux/mutex.h>
+#include <linux/wakelock.h>
+#endif
 
 #include "usb.h"
 #include "scsiglue.h"
@@ -86,6 +90,10 @@ static char quirks[128];
 module_param_string(quirks, quirks, sizeof(quirks), S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(quirks, "supplemental list of device IDs and their quirks");
 
+#if defined(CONFIG_ARCH_ACER_T30)
+static struct wake_lock USB_Storage_wake_lock;
+static DEFINE_MUTEX(USB_Storage_mutex);
+#endif
 
 /*
  * The entries in this table correspond, line for line,
@@ -851,6 +859,9 @@ static int usb_stor_scan_thread(void * __us)
 				delay_use * HZ);
 	}
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	mutex_lock(&USB_Storage_mutex);
+#endif
 	/* If the device is still connected, perform the scanning */
 	if (!test_bit(US_FLIDX_DONT_SCAN, &us->dflags)) {
 
@@ -861,13 +872,26 @@ static int usb_stor_scan_thread(void * __us)
 			us->max_lun = usb_stor_Bulk_max_lun(us);
 			mutex_unlock(&us->dev_mutex);
 		}
+#if defined(CONFIG_ARCH_ACER_T30)
+		if(!wake_lock_active(&USB_Storage_wake_lock)){
+			wake_lock(&USB_Storage_wake_lock);
+		}
+#endif
 		scsi_scan_host(us_to_host(us));
+#if defined(CONFIG_ARCH_ACER_T30)
+		if(wake_lock_active(&USB_Storage_wake_lock)){
+			wake_unlock(&USB_Storage_wake_lock);
+		}
+#endif
 		dev_dbg(dev, "scan complete\n");
 
 		/* Should we unbind if no devices were detected? */
 	}
 
 	usb_autopm_put_interface(us->pusb_intf);
+#if defined(CONFIG_ARCH_ACER_T30)
+	mutex_unlock(&USB_Storage_mutex);
+#endif
 	complete_and_exit(&us->scanning_done, 0);
 }
 
@@ -1017,6 +1041,11 @@ void usb_stor_disconnect(struct usb_interface *intf)
 	struct us_data *us = usb_get_intfdata(intf);
 
 	US_DEBUGP("storage_disconnect() called\n");
+#if defined(CONFIG_ARCH_ACER_T30)
+	if(wake_lock_active(&USB_Storage_wake_lock)){
+		wake_unlock(&USB_Storage_wake_lock);
+	}
+#endif
 	quiesce_and_remove_host(us);
 	release_everything(us);
 }
@@ -1085,6 +1114,9 @@ static int __init usb_stor_init(void)
 	/* register the driver, return usb_register return code if error */
 	retval = usb_register(&usb_storage_driver);
 	if (retval == 0) {
+#if defined(CONFIG_ARCH_ACER_T30)
+		wake_lock_init(&USB_Storage_wake_lock, WAKE_LOCK_SUSPEND, "USB_Storage_Enum");
+#endif
 		pr_info("USB Mass Storage support registered.\n");
 		usb_usual_set_present(USB_US_TYPE_STOR);
 	}
@@ -1102,6 +1134,9 @@ static void __exit usb_stor_exit(void)
 	US_DEBUGP("-- calling usb_deregister()\n");
 	usb_deregister(&usb_storage_driver) ;
 
+#if defined(CONFIG_ARCH_ACER_T30)
+	wake_lock_destroy(&USB_Storage_wake_lock);
+#endif
 	usb_usual_clear_present(USB_US_TYPE_STOR);
 }
 

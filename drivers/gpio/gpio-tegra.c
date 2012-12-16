@@ -778,9 +778,7 @@ static struct gpio_table gpio_unused_init_table[] = {
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PCC5, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // CLK2_REQ
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PV2, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PV2
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PV3, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // GPIO_PV3
-#if defined(CONFIG_MACH_PICASSO_E2)
-	GPIO_CONFIG(NULL, TEGRA_GPIO_PD1, GPIO_ENABLE, GPIO_HIGH, GPIO_OUTPUT), // SDMMC3_DAT4
-#else
+#if !defined(CONFIG_MACH_PICASSO_E2) && !defined(CONFIG_MACH_HERMES)
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PD1, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT4
 #endif
 	GPIO_CONFIG(NULL, TEGRA_GPIO_PD0, GPIO_ENABLE, GPIO_LOW, GPIO_OUTPUT), // SDMMC3_DAT5
@@ -1014,6 +1012,7 @@ void gpio_unused_init(void)
 		}
 		break;
 	case BOARD_PICASSO_E2:
+	case BOARD_PICASSO_E3:
 		for (i = 0; i < ARRAY_SIZE(picasso_E2_gpio_unused_init_table); i++) {
 			if (picasso_E2_gpio_unused_init_table[i].enabled) {
 				gpio_request(picasso_E2_gpio_unused_init_table[i].gpio, picasso_E2_gpio_unused_init_table[i].name);
@@ -1127,6 +1126,7 @@ void gpio_sleep_init(void)
 		}
 		break;
 	case BOARD_PICASSO_E2:
+	case BOARD_PICASSO_E3:
 		for (i = 0 ; i < ARRAY_SIZE(picasso_E2_gpio_sleep_init_table); i++) {
 			if (picasso_E2_gpio_sleep_init_table[i].enabled) {
 

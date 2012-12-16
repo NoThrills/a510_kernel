@@ -2188,6 +2188,9 @@ static void tegra_dc_hdmi_setup_avi_infoframe(struct tegra_dc *dc, bool dvi)
 		avi.vic = 0;
 	}
 
+	if (tegra_edid_underscan_supported(hdmi->edid)) {
+		avi.s = HDMI_AVI_S_UNDERSCAN;
+	}
 
 	tegra_dc_hdmi_write_infopack(dc, HDMI_NV_PDISP_HDMI_AVI_INFOFRAME_HEADER,
 				     HDMI_INFOFRAME_TYPE_AVI,

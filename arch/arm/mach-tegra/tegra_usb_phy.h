@@ -107,5 +107,8 @@ int tegra3_usb_phy_init_ops(struct tegra_usb_phy *phy);
 int tegra2_usb_phy_init_ops(struct tegra_usb_phy *phy);
 
 bool check_connect_status(struct tegra_usb_phy *phy);
+#define detect_plug_in    1
+#define detect_plug_out   2
+int check_connect_change(struct tegra_usb_phy *phy);
 
 #endif /* __MACH_TEGRA_USB_PHY_H */
